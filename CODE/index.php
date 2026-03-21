@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/data.php';
+khnv_redirect_localhost_to_ip();
 
 function khnv_h(string $value): string
 {

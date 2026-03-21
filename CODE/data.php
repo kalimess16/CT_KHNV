@@ -11,6 +11,121 @@ const KHNV_TEMPLATE_DOCX = KHNV_TEMPLATE_DOCX_ACTIVE;
 const KHNV_MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const KHNV_WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
+function khnv_is_loopback_host(string $host): bool
+{
+    $normalized = trim(strtolower($host), '[]');
+    return in_array($normalized, ['localhost', '127.0.0.1', '::1'], true);
+}
+
+function khnv_is_preferred_lan_ip(string $ip): bool
+{
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+
+    if (preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/', $ip)) {
+        return true;
+    }
+
+    return false;
+}
+
+function khnv_detect_server_ip(): string
+{
+    $candidates = [];
+
+    $serverAddr = (string) ($_SERVER['SERVER_ADDR'] ?? '');
+    if ($serverAddr !== '') {
+        $candidates[] = $serverAddr;
+    }
+
+    $hostIps = @gethostbynamel(gethostname());
+    if (is_array($hostIps)) {
+        foreach ($hostIps as $ip) {
+            $candidates[] = (string) $ip;
+        }
+    }
+
+    $validIps = [];
+    foreach ($candidates as $ip) {
+        $ip = trim($ip);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            continue;
+        }
+        if (khnv_is_loopback_host($ip)) {
+            continue;
+        }
+        $validIps[] = $ip;
+    }
+
+    $validIps = array_values(array_unique($validIps));
+    foreach ($validIps as $ip) {
+        if (khnv_is_preferred_lan_ip($ip)) {
+            return $ip;
+        }
+    }
+
+    return $validIps[0] ?? '';
+}
+
+function khnv_current_scheme(): string
+{
+    $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+    if ($https !== '' && $https !== 'off' && $https !== '0') {
+        return 'https';
+    }
+
+    $scheme = strtolower((string) ($_SERVER['REQUEST_SCHEME'] ?? ''));
+    if ($scheme === 'https') {
+        return 'https';
+    }
+
+    if ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443') {
+        return 'https';
+    }
+
+    return 'http';
+}
+
+function khnv_build_ip_url(string $ipHost): string
+{
+    $scheme = khnv_current_scheme();
+    $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $port = (string) ($_SERVER['SERVER_PORT'] ?? '');
+
+    $portSuffix = '';
+    if ($port !== '' && !in_array([$scheme, $port], [['http', '80'], ['https', '443']], true)) {
+        $portSuffix = ':' . $port;
+    }
+
+    return $scheme . '://' . $ipHost . $portSuffix . $requestUri;
+}
+
+function khnv_redirect_localhost_to_ip(): void
+{
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+
+    $hostHeader = (string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '');
+    if ($hostHeader === '') {
+        return;
+    }
+
+    $host = strtolower((string) preg_replace('/:\d+$/', '', trim($hostHeader)));
+    if (!khnv_is_loopback_host($host)) {
+        return;
+    }
+
+    $serverIp = khnv_detect_server_ip();
+    if ($serverIp === '') {
+        return;
+    }
+
+    header('Location: ' . khnv_build_ip_url($serverIp), true, 302);
+    exit;
+}
+
 function khnv_col_to_index(string $col): int
 {
     $col = strtoupper($col);
