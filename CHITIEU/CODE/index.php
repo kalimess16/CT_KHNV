@@ -2,6 +2,11 @@
 declare(strict_types=1);
 
 require __DIR__ . '/data.php';
+khnv_redirect_localhost_to_ip();
+
+$publicPrefix = defined('KHNV_PUBLIC_PREFIX') ? KHNV_PUBLIC_PREFIX : '';
+$homeHref = defined('KHNV_HOME_HREF') ? KHNV_HOME_HREF : '../../index.php';
+$selfUrl = defined('KHNV_SELF_URL') ? KHNV_SELF_URL : 'index.php';
 
 function khnv_h(string $value): string
 {
@@ -41,6 +46,7 @@ function khnv_group_subtitle(array $group, int $index, int $reportYear): string
 }
 
 $flash = $_GET['status'] ?? '';
+$view = $_GET['view'] ?? '';
 $error = '';
 $state = null;
 $zipArchiveAvailable = class_exists('ZipArchive');
@@ -51,7 +57,7 @@ try {
 
         if ($action === 'import') {
             khnv_import_uploaded_workbook($_FILES['import_file'] ?? []);
-            header('Location: index.php?status=imported');
+            header('Location: ' . $selfUrl . '?status=imported');
             exit;
         }
 
@@ -59,7 +65,7 @@ try {
 
         if ($action === 'save') {
             khnv_save_workbook(KHNV_INPUT_XLSX, $payload);
-            header('Location: index.php?status=saved');
+            header('Location: ' . $selfUrl . '?status=saved');
             exit;
         }
 
@@ -128,16 +134,21 @@ if ($flash === 'saved') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xuất chỉ tiêu KHNV</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Chỉ tiêu KHNV</title>
+    <link rel="stylesheet" href="<?= khnv_h($publicPrefix . 'style.css') ?>">
 </head>
-<body>
+<body class="<?= khnv_h($view !== '' ? 'view-' . preg_replace('/[^a-z0-9_-]/i', '', (string) $view) : '') ?>">
 <div class="page-shell">
+    <div class="page-topbar">
+        <a class="back-home" href="<?= khnv_h($homeHref) ?>">Trang chủ KHNV</a>
+        <span class="page-tag">Module Chỉ tiêu</span>
+    </div>
+
     <header class="hero">
         <div class="hero-copy">
-            <div class="eyebrow">KHNV / INPUT / OUTPUT</div>
-            <h1>Trang xuất chỉ tiêu tín dụng</h1>
-            <p>Đọc dữ liệu từ <strong><?= khnv_h($sourceFile) ?></strong>, import file local theo chuẩn <strong>CTKHNV*.xlsx</strong>, chỉnh trực tiếp trên màn hình và xuất theo mẫu <strong>OUTPUT/<?= khnv_h(basename(KHNV_TEMPLATE_DOCX)) ?></strong>.</p>
+            <div class="eyebrow">KHNV / CHITIEU / IMPORT & EXPORT</div>
+            <h1>Nhập và xuất chỉ tiêu tín dụng</h1>
+            <p>Đọc dữ liệu từ <strong><?= khnv_h($sourceFile) ?></strong>, nhập file local theo chuẩn <strong>CTKHNV*.xlsx</strong>, chỉnh trực tiếp trên màn hình và xuất theo mẫu <strong>OUTPUT/<?= khnv_h(basename(KHNV_TEMPLATE_DOCX)) ?></strong>.</p>
         </div>
         <div class="hero-stats">
             <div class="stat-card">
@@ -155,7 +166,7 @@ if ($flash === 'saved') {
         </div>
     </header>
 
-    <section class="toolbar">
+    <section class="toolbar" id="actionToolbar">
         <div class="toolbar-info">
             <div class="status-line">
                 <span class="dot"></span>
@@ -173,11 +184,11 @@ if ($flash === 'saved') {
                     accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     required
                 >
-                <button type="submit" name="action" value="import" class="btn btn-secondary">Import file local</button>
+                <button type="submit" name="action" value="import" class="btn btn-secondary">Nhập chỉ tiêu từ Excel</button>
             </form>
             <button type="button" class="btn btn-ghost" id="reloadBtn">Đọc lại mẫu</button>
             <button type="submit" form="sheetForm" name="action" value="save" class="btn btn-primary">Lưu cập nhật</button>
-            <button type="submit" form="sheetForm" name="action" value="export" class="btn btn-accent">Xuất chỉ tiêu</button>
+            <button type="submit" form="sheetForm" name="action" value="export" class="btn btn-accent" id="exportBtn">Xuất chỉ tiêu tín dụng</button>
         </div>
     </section>
 
@@ -294,6 +305,10 @@ if ($flash === 'saved') {
     const form = document.getElementById('sheetForm');
     const payload = document.getElementById('payload');
     const reloadBtn = document.getElementById('reloadBtn');
+    const importForm = document.getElementById('importForm');
+    const importFile = document.getElementById('importFile');
+    const exportBtn = document.getElementById('exportBtn');
+    const initialView = <?= json_encode($view, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const groups = <?= json_encode(
         array_map(
             static fn(array $group): array => [
@@ -451,6 +466,25 @@ if ($flash === 'saved') {
         });
     });
     updateDirtyState();
+
+    function highlightTarget(target) {
+        if (!(target instanceof HTMLElement)) return;
+        target.classList.add('pulse-focus');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+            target.classList.remove('pulse-focus');
+        }, 2400);
+    }
+
+    if (initialView === 'import' && importForm instanceof HTMLElement) {
+        highlightTarget(importForm);
+        window.setTimeout(() => importFile?.focus(), 350);
+    }
+
+    if (initialView === 'export' && exportBtn instanceof HTMLElement) {
+        highlightTarget(exportBtn);
+        window.setTimeout(() => exportBtn.focus(), 350);
+    }
 })();
 </script>
 </body>
