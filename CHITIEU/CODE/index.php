@@ -7,10 +7,28 @@ khnv_redirect_localhost_to_ip();
 $publicPrefix = defined('KHNV_PUBLIC_PREFIX') ? KHNV_PUBLIC_PREFIX : '';
 $homeHref = defined('KHNV_HOME_HREF') ? KHNV_HOME_HREF : '../../index.php';
 $selfUrl = defined('KHNV_SELF_URL') ? KHNV_SELF_URL : 'index.php';
+$embedded = (string) ($_GET['embedded'] ?? '') === '1';
 
 function khnv_h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function khnv_url_with_query(string $baseUrl, array $params): string
+{
+    $filtered = [];
+    foreach ($params as $key => $value) {
+        if ($value === null || $value === '') {
+            continue;
+        }
+        $filtered[$key] = (string) $value;
+    }
+
+    if ($filtered === []) {
+        return $baseUrl;
+    }
+
+    return $baseUrl . (str_contains($baseUrl, '?') ? '&' : '?') . http_build_query($filtered);
 }
 
 function khnv_row_has_content(array $row): bool
@@ -50,6 +68,14 @@ $view = $_GET['view'] ?? '';
 $error = '';
 $state = null;
 $zipArchiveAvailable = class_exists('ZipArchive');
+$preservedParams = [];
+if ($view !== '') {
+    $preservedParams['view'] = (string) $view;
+}
+if ($embedded) {
+    $preservedParams['embedded'] = '1';
+}
+$selfUrl = khnv_url_with_query($selfUrl, $preservedParams);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,7 +83,7 @@ try {
 
         if ($action === 'import') {
             khnv_import_uploaded_workbook($_FILES['import_file'] ?? []);
-            header('Location: ' . $selfUrl . '?status=imported');
+            header('Location: ' . khnv_url_with_query($selfUrl, ['status' => 'imported']));
             exit;
         }
 
@@ -65,7 +91,7 @@ try {
 
         if ($action === 'save') {
             khnv_save_workbook(KHNV_INPUT_XLSX, $payload);
-            header('Location: ' . $selfUrl . '?status=saved');
+            header('Location: ' . khnv_url_with_query($selfUrl, ['status' => 'saved']));
             exit;
         }
 
@@ -143,10 +169,19 @@ if ($flash === 'saved') {
     <title>Chỉ tiêu KHNV</title>
     <link rel="stylesheet" href="<?= khnv_h($publicPrefix . 'style.css') ?>">
 </head>
-<body class="<?= khnv_h($view !== '' ? 'view-' . preg_replace('/[^a-z0-9_-]/i', '', (string) $view) : '') ?>">
+<?php
+$bodyClasses = [];
+if ($view !== '') {
+    $bodyClasses[] = 'view-' . preg_replace('/[^a-z0-9_-]/i', '', (string) $view);
+}
+if ($embedded) {
+    $bodyClasses[] = 'embedded';
+}
+?>
+<body class="<?= khnv_h(implode(' ', $bodyClasses)) ?>">
 <div class="page-shell">
     <div class="page-topbar">
-        <a class="back-home" href="<?= khnv_h($homeHref) ?>">Trang chủ KHNV</a>
+        <a class="back-home" href="<?= khnv_h($homeHref) ?>"<?= $embedded ? ' target="_top"' : '' ?>>Trang chủ KHNV</a>
         <span class="page-tag">Module Chỉ tiêu</span>
     </div>
 
@@ -531,7 +566,9 @@ if ($flash === 'saved') {
     });
 
     reloadBtn.addEventListener('click', () => {
-        window.location.href = window.location.pathname;
+        const url = new URL(window.location.href);
+        url.searchParams.delete('status');
+        window.location.href = url.toString();
     });
 
     document.querySelectorAll('input.cell-num').forEach((input) => {
@@ -562,6 +599,49 @@ if ($flash === 'saved') {
     if (initialView === 'export' && exportBtn instanceof HTMLElement) {
         highlightTarget(exportBtn);
         window.setTimeout(() => exportBtn.focus(), 350);
+    }
+
+    const isEmbedded = document.body.classList.contains('embedded');
+    if (isEmbedded && window.parent !== window) {
+        const notifyParentHeight = () => {
+            const root = document.querySelector('.page-shell');
+            const height = Math.ceil(
+                root instanceof HTMLElement
+                    ? root.getBoundingClientRect().height
+                    : Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
+            );
+            window.parent.postMessage({
+                type: 'khnv-embedded-height',
+                height,
+            }, window.location.origin);
+        };
+
+        const scheduleNotify = () => {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(notifyParentHeight);
+            });
+        };
+
+        scheduleNotify();
+        window.addEventListener('load', scheduleNotify);
+        window.addEventListener('resize', scheduleNotify);
+
+        if ('ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(() => {
+                scheduleNotify();
+            });
+            resizeObserver.observe(document.body);
+        }
+
+        const mutationObserver = new MutationObserver(() => {
+            scheduleNotify();
+        });
+        mutationObserver.observe(document.body, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            characterData: true,
+        });
     }
 })();
 </script>

@@ -6,6 +6,11 @@ function home_h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function home_inline_src(string $href): string
+{
+    return $href . (str_contains($href, '?') ? '&' : '?') . 'embedded=1';
+}
+
 $menuItems = [
     [
         'label' => 'Kế hoạch',
@@ -23,7 +28,7 @@ $menuItems = [
         'children' => [
             [
                 'label' => 'Xuất tờ trình CTTD',
-                'description' => 'Mở module CHITIEU để xuất biểu mẫu DOCX.',
+                'description' => 'Hổ trợ xuất tờ trình điều chỉnh kết hoạch.',
                 'available' => true,
                 'href' => 'CHITIEU/index.php?view=export',
             ],
@@ -31,26 +36,6 @@ $menuItems = [
     ],
 ];
 
-$cards = [
-    [
-        'class' => 'card-plan',
-        'kicker' => 'Kế hoạch',
-        'title' => 'Nhập kế hoạch nguồn vốn tín dụng',
-        'description' => 'Chức năng này là module riêng và hiện chưa triển khai.',
-        'cta' => 'Đang phát triển chờ',
-        'available' => false,
-        'message' => 'Đang phát triển chờ',
-    ],
-    [
-        'class' => 'card-target',
-        'kicker' => 'Chỉ tiêu',
-        'title' => 'Xuất tờ trình CTTD',
-        'description' => 'Mở module CHITIEU để rà soát dữ liệu và xuất biểu mẫu DOCX.',
-        'cta' => 'Mở chức năng',
-        'available' => true,
-        'href' => 'CHITIEU/index.php?view=export',
-    ],
-];
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -63,10 +48,16 @@ $cards = [
 <body>
 <div class="page-shell">
     <header class="page-head">
-        <div class="head-copy">
-            <span class="eyebrow">KHNV Workspace</span>
-            <h1>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</h1>
-            <p>Trang chủ đang dùng kiểu menu ngang với dropdown và chỉ giữ lại những chức năng hiện có.</p>
+        <div class="brand-bar">
+            <div class="brand-logo">
+                <img class="brand-logo-image" src="logo.png" alt="Logo VBSP">
+            </div>
+
+            <div class="head-copy">
+                <span class="eyebrow">VBSP Workspace</span>
+                <h1>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</h1>
+                <p>Trang này hổ trợ công tác cá nhân trong phòng KHNV.</p>
+            </div>
         </div>
 
         <nav class="top-nav" aria-label="Điều hướng chính">
@@ -74,13 +65,19 @@ $cards = [
                 <?php foreach ($menuItems as $menuItem): ?>
                     <li class="top-item">
                         <button type="button" class="top-trigger" aria-expanded="false">
-                            <?= home_h($menuItem['label']) ?>
+                            <span><?= home_h($menuItem['label']) ?></span>
                             <span class="top-caret" aria-hidden="true"></span>
                         </button>
+
                         <div class="dropdown">
                             <?php foreach ($menuItem['children'] as $child): ?>
                                 <?php if (!empty($child['available'])): ?>
-                                    <a class="dropdown-link" href="<?= home_h((string) $child['href']) ?>">
+                                    <a
+                                        class="dropdown-link js-inline-feature"
+                                        href="<?= home_h((string) $child['href']) ?>"
+                                        data-inline-src="<?= home_h(home_inline_src((string) $child['href'])) ?>"
+                                        data-feature-title="<?= home_h($child['label']) ?>"
+                                    >
                                 <?php else: ?>
                                     <button
                                         type="button"
@@ -103,39 +100,49 @@ $cards = [
         </nav>
     </header>
 
-    <main class="card-grid">
-        <?php foreach ($cards as $card): ?>
-            <?php if (!empty($card['available'])): ?>
-                <a class="feature-card <?= home_h($card['class']) ?>" href="<?= home_h((string) $card['href']) ?>">
-            <?php else: ?>
-                <button
-                    type="button"
-                    class="feature-card feature-card-disabled js-coming-soon <?= home_h($card['class']) ?>"
-                    data-message="<?= home_h((string) ($card['message'] ?? 'Đang phát triển chờ')) ?>"
-                >
-            <?php endif; ?>
-                <span class="card-kicker"><?= home_h($card['kicker']) ?></span>
-                <h2><?= home_h($card['title']) ?></h2>
-                <p><?= home_h($card['description']) ?></p>
-                <span class="card-link"><?= home_h($card['cta']) ?></span>
-            <?php if (!empty($card['available'])): ?>
-                </a>
-            <?php else: ?>
-                </button>
-            <?php endif; ?>
-        <?php endforeach; ?>
+    <main class="content-shell">
+        <section class="logo-showcase" id="homePlaceholder" aria-label="Logo trang chủ">
+            <img class="logo-showcase-image" src="logo.png" alt="Logo VBSP">
+            <p class="logo-showcase-slogan">Thấu hiểu lòng dân, tận tâm, phục vụ</p>
+        </section>
+
+        <section class="feature-viewer" id="featureViewer" hidden aria-label="Vùng hiển thị chức năng">
+            <div class="feature-viewer-bar">
+                <div class="feature-viewer-copy">
+                    <span class="feature-viewer-kicker">Chức năng đang mở</span>
+                    <strong id="featureViewerTitle">Đang tải chức năng</strong>
+                </div>
+                <button type="button" class="feature-viewer-close" id="featureViewerClose">Đóng</button>
+            </div>
+
+            <iframe
+                id="featureFrame"
+                class="feature-frame"
+                title="Khung nội dung chức năng"
+                loading="lazy"
+                src="about:blank"
+            ></iframe>
+        </section>
     </main>
 </div>
 
 <script>
 (() => {
     const items = document.querySelectorAll('.top-item');
+    const inlineLinks = document.querySelectorAll('.js-inline-feature');
+    const placeholder = document.getElementById('homePlaceholder');
+    const viewer = document.getElementById('featureViewer');
+    const viewerTitle = document.getElementById('featureViewerTitle');
+    const viewerClose = document.getElementById('featureViewerClose');
+    const featureFrame = document.getElementById('featureFrame');
+    const homePath = new URL(window.location.href).pathname;
 
     function closeAll(exceptItem = null) {
         items.forEach((item) => {
             if (item === exceptItem) {
                 return;
             }
+
             item.classList.remove('is-open');
             const trigger = item.querySelector('.top-trigger');
             if (trigger instanceof HTMLButtonElement) {
@@ -158,10 +165,81 @@ $cards = [
         });
     });
 
+    function openInlineFeature(src, title) {
+        if (!(viewer instanceof HTMLElement) || !(featureFrame instanceof HTMLIFrameElement)) {
+            return;
+        }
+
+        const currentSrc = viewer.dataset.activeSrc || '';
+        if (!viewer.hidden && currentSrc === src) {
+            if (viewerTitle instanceof HTMLElement) {
+                viewerTitle.textContent = title;
+            }
+            viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
+        if (placeholder instanceof HTMLElement) {
+            placeholder.hidden = true;
+        }
+
+        viewer.hidden = false;
+        viewer.dataset.activeSrc = src;
+        featureFrame.src = src;
+        featureFrame.style.height = '420px';
+
+        if (viewerTitle instanceof HTMLElement) {
+            viewerTitle.textContent = title;
+        }
+
+        viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetToHomePlaceholder(shouldScroll = true) {
+        if (viewer instanceof HTMLElement) {
+            viewer.hidden = true;
+            delete viewer.dataset.activeSrc;
+        }
+
+        if (featureFrame instanceof HTMLIFrameElement) {
+            featureFrame.src = 'about:blank';
+            featureFrame.style.height = '320px';
+        }
+
+        if (placeholder instanceof HTMLElement) {
+            placeholder.hidden = false;
+            if (shouldScroll) {
+                placeholder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }
+
+    inlineLinks.forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+
+            const src = link.getAttribute('data-inline-src') || link.getAttribute('href');
+            const title = link.getAttribute('data-feature-title') || 'Chức năng';
+            if (!src) {
+                return;
+            }
+
+            closeAll();
+            openInlineFeature(src, title);
+        });
+    });
+
+    if (viewerClose instanceof HTMLButtonElement) {
+        viewerClose.addEventListener('click', () => {
+            resetToHomePlaceholder();
+        });
+    }
+
     document.addEventListener('click', (event) => {
         if (!(event.target instanceof Node)) {
             return;
         }
+
         if (!event.target.closest('.top-nav')) {
             closeAll();
         }
@@ -172,6 +250,52 @@ $cards = [
             closeAll();
         }
     });
+
+    window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+
+        if (!(featureFrame instanceof HTMLIFrameElement)) {
+            return;
+        }
+
+        const data = event.data;
+        if (!data || data.type !== 'khnv-embedded-height') {
+            return;
+        }
+
+        const nextHeight = Number(data.height) || 0;
+        if (nextHeight > 0) {
+            featureFrame.style.height = `${Math.max(nextHeight + 4, 240)}px`;
+        }
+    });
+
+    if (featureFrame instanceof HTMLIFrameElement) {
+        featureFrame.addEventListener('load', () => {
+            try {
+                const frameWindow = featureFrame.contentWindow;
+                const frameDocument = frameWindow?.document;
+                if (!frameWindow || !frameDocument) {
+                    return;
+                }
+
+                const framePath = frameWindow.location.pathname;
+                if (framePath === homePath || frameDocument.querySelector('.page-head')) {
+                    resetToHomePlaceholder(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+
+                const root = frameDocument.querySelector('.page-shell');
+                if (root instanceof HTMLElement) {
+                    featureFrame.style.height = `${Math.max(Math.ceil(root.getBoundingClientRect().height) + 4, 240)}px`;
+                }
+            } catch (error) {
+                console.warn('Không thể đồng bộ nội dung iframe:', error);
+            }
+        });
+    }
 
     document.querySelectorAll('.js-coming-soon').forEach((button) => {
         button.addEventListener('click', () => {

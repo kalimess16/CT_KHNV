@@ -38,9 +38,19 @@ body {
         linear-gradient(180deg, var(--bg-1), var(--bg-0));
 }
 
+body.embedded {
+    background: #ffffff;
+    min-height: auto;
+}
+
 .page-shell {
     width: min(1800px, calc(100vw - 32px));
     margin: 20px auto 40px;
+}
+
+body.embedded .page-shell {
+    width: 100%;
+    margin: 0;
 }
 
 .page-topbar {
@@ -49,6 +59,10 @@ body {
     justify-content: space-between;
     gap: 14px;
     margin-bottom: 14px;
+}
+
+body.embedded .page-topbar {
+    display: none;
 }
 
 .back-home,
@@ -93,6 +107,16 @@ body {
     border-radius: 24px;
     overflow: hidden;
     position: relative;
+}
+
+body.embedded .hero {
+    padding: 22px clamp(16px, 2vw, 30px);
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
 }
 
 .hero::before {
@@ -177,6 +201,33 @@ body {
     justify-content: space-between;
     gap: 18px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 249, 252, 0.88));
+}
+
+body.embedded .toolbar,
+body.embedded .notice,
+body.embedded .table-wrap {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.embedded .toolbar {
+    margin-top: 0;
+    padding-left: clamp(16px, 2vw, 30px);
+    padding-right: clamp(16px, 2vw, 30px);
+}
+
+body.embedded .notice {
+    margin-top: 0;
+}
+
+body.embedded .sheet-form {
+    margin-top: 0;
+}
+
+body.embedded .table-wrap {
+    max-height: none;
 }
 
 .status-line {

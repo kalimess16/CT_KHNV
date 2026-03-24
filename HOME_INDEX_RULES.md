@@ -29,14 +29,27 @@ Tài liệu này ghi nhớ các quy ước hiện tại của trang chủ `CT_KH
 
 - Font giao diện trang chủ đang dùng: `Times New Roman`.
 - Trang chủ đang dùng CSS tại `assets/home.css`.
+- Header trang chủ đang hiển thị full chiều ngang màn hình.
+- Phần dưới header hiện có một vùng hero/showcase full chiều ngang để hiển thị logo hoặc nội dung chức năng.
+- Hero trang chủ đang dùng hiệu ứng sáng nhẹ theo màu logo và có slogan:
+  - `Thấu hiểu lòng dân, tận tâm, phục vụ`
 - Khi dọn hoặc sửa giao diện, ưu tiên giữ bố cục gọn, dễ nhìn và không để khối tiêu đề quá lớn gây vỡ layout.
 
-## 5. Quy ước sửa tiếp
+## 5. Quy ước tải chức năng trong trang chủ
+
+- Khi người dùng bấm vào chức năng đang hoạt động, nội dung phải được tải ngay trong vùng nội dung phía dưới của `CT_KHNV/index.php`.
+- Không chuyển toàn bộ trình duyệt sang một trang khác nếu chức năng đó hỗ trợ nhúng trong trang chủ.
+- Với module `CHITIEU`, luồng nhúng trong trang chủ phải dùng đúng nguồn:
+  - `CHITIEU/index.php?view=export`
+- Nếu cần chế độ nhúng riêng cho module, phải giữ nguyên nghiệp vụ hiện có và chỉ tinh chỉnh hiển thị để phù hợp khi mở trong trang chủ.
+
+## 6. Quy ước sửa tiếp
 
 - Khi sửa `CT_KHNV/index.php`, luôn kiểm tra:
   - `Kế hoạch` còn là chức năng riêng.
   - `Kế hoạch` không trỏ vào `CHITIEU`.
   - `Kế hoạch` vẫn báo `Đang phát triển chờ` nếu chưa có module riêng.
   - `Chỉ tiêu` vẫn trỏ đúng vào module `CHITIEU`.
+  - Chức năng hoạt động được tải trong vùng nội dung bên dưới thay vì điều hướng toàn trang.
 - Sau khi sửa `index.php`, nên kiểm tra lại cú pháp bằng:
   - `php -l index.php`
