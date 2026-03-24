@@ -207,12 +207,8 @@ function khnv_clean_number_string($value): string
         return trim((string) $value);
     }
     $num = (float) $value;
-    if (abs($num - round($num)) < 0.00000001) {
-        return (string) (int) round($num);
-    }
-    $rounded = round($num, 2);
-    $out = rtrim(rtrim(sprintf('%.2F', $rounded), '0'), '.');
-    return $out === '-0' ? '0' : $out;
+    $rounded = (int) round($num);
+    return $rounded === 0 ? '0' : (string) $rounded;
 }
 
 function khnv_format_report_number($value): string
@@ -224,13 +220,10 @@ function khnv_format_report_number($value): string
     if ($clean === '') {
         return '';
     }
-    if (strpos($clean, '.') !== false) {
-        $parts = explode('.', $clean);
-        $intPart = number_format((int) $parts[0], 0, '.', ',');
-        $decimal = substr($parts[1] . '00', 0, 2);
-        return $intPart . '.' . $decimal;
+    if (!is_numeric($clean)) {
+        return $clean;
     }
-    return number_format((int) $clean, 0, '.', ',') . '.00';
+    return number_format((int) round((float) $clean), 0, '.', ',');
 }
 
 function khnv_safe_upper(string $value): string

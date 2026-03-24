@@ -74,3 +74,25 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 ## 9. Ghi nhớ bố cục
 
 - `PHONG_GIAO_DICH` phải nằm ngay dưới `TIEU_DE_1`, trước các dòng ghi chú và `DON_VI`.
+
+## 10. Ghi nhớ mới
+
+- Màn hình `CHITIEU/CODE/index.php` phải bám theo workbook đang import:
+- Nếu Excel có 3 dòng dữ liệu thì chỉ hiển thị đúng 3 dòng dữ liệu.
+- Nếu Excel có 2 nhóm/cột `Cho vay ...` thì hiển thị đúng 2 nhóm/cột; nếu có 5 nhóm/cột thì hiển thị đúng 5 nhóm/cột.
+- Không được render thêm danh sách PGD hoặc cột rỗng/`0` do logic hard-code cũ.
+- Khi export DOCX, mỗi PGD phải ra đúng block của chính nó; không được dồn danh sách tên PGD lên đầu trang đầu.
+
+## 11. Ghi nhớ file mẫu
+
+- File mẫu đang active để export hiện tại là `CHITIEU/OUTPUT/1.docx`.
+- Hai file mẫu còn lại đang có trong thư mục là `CHITIEU/OUTPUT/MAU.docx` và `CHITIEU/OUTPUT/MAU_NEW.docx`.
+- Khi người dùng nói chỉnh file mẫu, ưu tiên kiểm tra 3 file trên trước vì đây là các file mẫu cần giữ lại.
+
+## 12. Ghi nhớ lựa chọn mẫu sau này
+
+- Dự kiến bổ sung 3 lựa chọn xuất:
+- Mẫu 1: `DP`
+- Mẫu 2: `TW`
+- Mẫu 3: `ALL`
+- Khi người dùng yêu cầu sau này, hiểu đây là yêu cầu chia export theo 3 chế độ chọn mẫu ở trên.

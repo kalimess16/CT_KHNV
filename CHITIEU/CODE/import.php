@@ -27,6 +27,7 @@ function khnv_parse_workbook(string $path): array
     $rows = [];
     $cellsByRef = [];
     $formulaRefs = [];
+    $mergeRanges = khnv_parse_merge_ranges($xp);
 
     foreach ($xp->query('//x:sheetData/x:row') as $rowNode) {
         /** @var DOMElement $rowNode */
@@ -98,8 +99,217 @@ function khnv_parse_workbook(string $path): array
         'cellsByRef' => $cellsByRef,
         'groups' => $groups,
         'formulaRefs' => $formulaRefs,
+        'mergeRanges' => $mergeRanges,
         'sharedStrings' => $sharedStrings,
     ];
+}
+
+function khnv_parse_merge_ranges(DOMXPath $xp): array
+{
+    $ranges = [];
+    foreach ($xp->query('//x:mergeCells/x:mergeCell') as $mergeNode) {
+        if (!$mergeNode instanceof DOMElement) {
+            continue;
+        }
+        $ref = trim($mergeNode->getAttribute('ref'));
+        if (!preg_match('/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/', $ref, $m)) {
+            continue;
+        }
+        $ranges[] = [
+            'ref' => $ref,
+            'start_col' => $m[1],
+            'start_row' => (int) $m[2],
+            'end_col' => $m[3],
+            'end_row' => (int) $m[4],
+            'start_index' => khnv_col_to_index($m[1]),
+            'end_index' => khnv_col_to_index($m[3]),
+        ];
+    }
+
+    return $ranges;
+}
+
+function khnv_find_merge_range(array $mergeRanges, int $rowNum, string $col): ?array
+{
+    $colIndex = khnv_col_to_index($col);
+    foreach ($mergeRanges as $range) {
+        if (
+            $rowNum >= (int) ($range['start_row'] ?? 0)
+            && $rowNum <= (int) ($range['end_row'] ?? 0)
+            && $colIndex >= (int) ($range['start_index'] ?? 0)
+            && $colIndex <= (int) ($range['end_index'] ?? 0)
+        ) {
+            return $range;
+        }
+    }
+
+    return null;
+}
+
+function khnv_detect_data_start_row(array $rows): int
+{
+    ksort($rows);
+    foreach ($rows as $rowNum => $row) {
+        $stt = khnv_normalize_cell_text((string) (($row['cells']['A']['value'] ?? '')));
+        if ($stt !== '' && preg_match('/^\d+$/', $stt)) {
+            return (int) $rowNum;
+        }
+    }
+
+    return 3;
+}
+
+function khnv_detect_used_columns(array $rows): array
+{
+    $loanGroups = khnv_detect_loan_groups($rows);
+    if ($loanGroups) {
+        $columns = ['A', 'B', 'C'];
+        foreach ($loanGroups as $group) {
+            foreach (['start', 'adjust', 'target'] as $key) {
+                $col = (string) ($group[$key] ?? '');
+                if ($col !== '' && !in_array($col, $columns, true)) {
+                    $columns[] = $col;
+                }
+            }
+        }
+        return $columns;
+    }
+
+    $maxIndex = 0;
+    foreach ($rows as $row) {
+        foreach (($row['cells'] ?? []) as $cell) {
+            $value = (string) ($cell['value'] ?? '');
+            if ($value === '' && empty($cell['has_formula'])) {
+                continue;
+            }
+            $col = (string) ($cell['col'] ?? '');
+            if ($col === '') {
+                continue;
+            }
+            $maxIndex = max($maxIndex, khnv_col_to_index($col));
+        }
+    }
+
+    if ($maxIndex <= 0) {
+        return ['A', 'B', 'C'];
+    }
+
+    $columns = [];
+    for ($index = 1; $index <= $maxIndex; $index++) {
+        $columns[] = khnv_index_to_col($index);
+    }
+
+    return $columns;
+}
+
+function khnv_build_sheet_header_rows(array $rows, array $displayColumns, int $headerRowCount, array $mergeRanges): array
+{
+    $headerRows = [];
+    for ($rowNum = 1; $rowNum <= $headerRowCount; $rowNum++) {
+        $cells = [];
+        foreach ($displayColumns as $col) {
+            $mergeRange = khnv_find_merge_range($mergeRanges, $rowNum, $col);
+            if (
+                $mergeRange !== null
+                && (
+                    (int) $mergeRange['start_row'] !== $rowNum
+                    || (string) $mergeRange['start_col'] !== $col
+                )
+            ) {
+                continue;
+            }
+
+            $colIndex = khnv_col_to_index($col);
+            $colspan = 1;
+            $rowspan = 1;
+            if ($mergeRange !== null) {
+                $colspan = ((int) $mergeRange['end_index']) - ((int) $mergeRange['start_index']) + 1;
+                $rowspan = min($headerRowCount, (int) $mergeRange['end_row']) - (int) $mergeRange['start_row'] + 1;
+            }
+
+            $cells[] = [
+                'col' => $col,
+                'index' => $colIndex,
+                'value' => (string) ($rows[$rowNum]['cells'][$col]['value'] ?? ''),
+                'colspan' => max(1, $colspan),
+                'rowspan' => max(1, $rowspan),
+            ];
+        }
+        $headerRows[] = [
+            'row_num' => $rowNum,
+            'cells' => $cells,
+        ];
+    }
+
+    return $headerRows;
+}
+
+function khnv_formula_ref_value(array $rows, string $ref): float
+{
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $ref, $m)) {
+        return 0.0;
+    }
+
+    $rowNum = (int) $m[2];
+    $col = $m[1];
+    if (!isset($rows[$rowNum]['cells'][$col])) {
+        return 0.0;
+    }
+
+    return khnv_row_numeric_value($rows[$rowNum]['cells'], $col);
+}
+
+function khnv_formula_sum_range(array $rows, string $startRef, string $endRef): float
+{
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $startRef, $startMatch)) {
+        return 0.0;
+    }
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $endRef, $endMatch)) {
+        return 0.0;
+    }
+
+    $startCol = khnv_col_to_index($startMatch[1]);
+    $endCol = khnv_col_to_index($endMatch[1]);
+    $startRow = (int) $startMatch[2];
+    $endRow = (int) $endMatch[2];
+
+    if ($startCol > $endCol) {
+        [$startCol, $endCol] = [$endCol, $startCol];
+    }
+    if ($startRow > $endRow) {
+        [$startRow, $endRow] = [$endRow, $startRow];
+    }
+
+    $sum = 0.0;
+    for ($row = $startRow; $row <= $endRow; $row++) {
+        for ($colIndex = $startCol; $colIndex <= $endCol; $colIndex++) {
+            $sum += khnv_formula_ref_value($rows, khnv_index_to_col($colIndex) . $row);
+        }
+    }
+
+    return $sum;
+}
+
+function khnv_evaluate_formula(string $formula, array $rows): ?string
+{
+    $formula = preg_replace('/\s+/u', '', trim($formula)) ?? trim($formula);
+    $formula = ltrim($formula, '=');
+    if ($formula === '') {
+        return null;
+    }
+
+    if (preg_match('/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i', $formula, $m)) {
+        return khnv_clean_number_string(khnv_formula_sum_range($rows, strtoupper($m[1]), strtoupper($m[2])));
+    }
+
+    if (preg_match('/^([A-Z]+\d+)([+\-])([A-Z]+\d+)$/i', $formula, $m)) {
+        $left = khnv_formula_ref_value($rows, strtoupper($m[1]));
+        $right = khnv_formula_ref_value($rows, strtoupper($m[3]));
+        $result = $m[2] === '-' ? ($left - $right) : ($left + $right);
+        return khnv_clean_number_string($result);
+    }
+
+    return null;
 }
 
 function khnv_recalculate_rows(array &$rows): void
@@ -109,14 +319,17 @@ function khnv_recalculate_rows(array &$rows): void
         if (!isset($row['cells'])) {
             continue;
         }
-        foreach (['F', 'I', 'L', 'O', 'R', 'U', 'X', 'AA', 'AD'] as $col) {
-            if (!isset($row['cells'][$col])) {
+        foreach ($row['cells'] as $col => &$cell) {
+            if (empty($cell['has_formula'])) {
                 continue;
             }
-            $left1 = khnv_row_numeric_value($row['cells'], khnv_index_to_col(khnv_col_to_index($col) - 2));
-            $left2 = khnv_row_numeric_value($row['cells'], khnv_index_to_col(khnv_col_to_index($col) - 1));
-            $row['cells'][$col]['value'] = khnv_clean_number_string($left1 + $left2);
+            $computed = khnv_evaluate_formula((string) ($cell['formula'] ?? ''), $rows);
+            if ($computed === null) {
+                continue;
+            }
+            $cell['value'] = $computed;
         }
+        unset($cell);
     }
     unset($row);
 }
@@ -207,8 +420,12 @@ function khnv_detect_loan_groups(array $rows): array
         $sub0 = khnv_normalize_cell_text((string) ($row2[$startCol]['value'] ?? ''));
         $sub1 = khnv_normalize_cell_text((string) ($row2[$adjustCol]['value'] ?? ''));
         $sub2 = khnv_normalize_cell_text((string) ($row2[$targetCol]['value'] ?? ''));
+        $hasMeaningfulHeader = khnv_is_meaningful_header_text($label)
+            || khnv_is_meaningful_header_text($sub0)
+            || khnv_is_meaningful_header_text($sub1)
+            || khnv_is_meaningful_header_text($sub2);
 
-        if ($label === '' && $sub0 === '' && $sub1 === '' && $sub2 === '') {
+        if (!$hasMeaningfulHeader) {
             continue;
         }
 

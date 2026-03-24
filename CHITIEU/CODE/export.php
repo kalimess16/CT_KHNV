@@ -424,14 +424,22 @@ function khnv_export_docx_from_state(array $state, string $templatePath, ?string
         throw new RuntimeException('DOCX template không có sectPr hợp lệ.');
     }
 
+    if ($groupHeadingTemplate->parentNode instanceof DOMNode) {
+        $groupHeadingTemplate->parentNode->removeChild($groupHeadingTemplate);
+    }
+    if ($tableTemplate->parentNode instanceof DOMNode) {
+        $tableTemplate->parentNode->removeChild($tableTemplate);
+    }
+
     $groups = $state['groups'];
     $printedAnyGroup = false;
-    foreach ($groups as $index => $group) {
+    foreach ($groups as $group) {
         if (!khnv_group_has_exportable_content($group, $state)) {
             continue;
         }
-        $headingNode = $index === 0 ? $groupHeadingTemplate : $groupHeadingTemplate->cloneNode(true);
-        $tableNode = $index === 0 ? $tableTemplate : $tableTemplate->cloneNode(true);
+        $isFirstPrintedGroup = !$printedAnyGroup;
+        $headingNode = $groupHeadingTemplate->cloneNode(true);
+        $tableNode = $tableTemplate->cloneNode(true);
 
         $headingText = khnv_group_heading((string) ($group['pgd'] ?? ''));
         $headingUsesPlaceholder = stripos(khnv_node_text($headingNode), '{{PHONG_GIAO_DICH}}') !== false;
@@ -448,21 +456,23 @@ function khnv_export_docx_from_state(array $state, string $templatePath, ?string
         khnv_docx_update_table_headers_by_position($tableNode, $headerAdjust, $headerTarget);
         khnv_render_docx_table_from_state($tableNode, $group, $state);
 
-        if ($printedAnyGroup) {
+        $insertHeadingBefore = $titleAfterHeading[0] ?? $sectPr;
+        if (!$isFirstPrintedGroup) {
             $body->insertBefore(khnv_create_page_break_paragraph($docXml), $sectPr);
             foreach ($titleBeforeHeading as $paragraph) {
                 $body->insertBefore($paragraph->cloneNode(true), $sectPr);
             }
-            $body->insertBefore($headingNode, $sectPr);
+            $insertHeadingBefore = $sectPr;
             foreach ($titleAfterHeading as $paragraph) {
-                $body->insertBefore($paragraph->cloneNode(true), $sectPr);
+                $clone = $paragraph->cloneNode(true);
+                $body->insertBefore($clone, $sectPr);
+                if ($insertHeadingBefore === $sectPr) {
+                    $insertHeadingBefore = $clone;
+                }
             }
-            $body->insertBefore($tableNode, $sectPr);
-        } else {
-            $insertHeadingBefore = $titleAfterHeading[0] ?? $sectPr;
-            $body->insertBefore($headingNode, $insertHeadingBefore);
-            $body->insertBefore($tableNode, $sectPr);
         }
+        $body->insertBefore($headingNode, $insertHeadingBefore);
+        $body->insertBefore($tableNode, $sectPr);
         $printedAnyGroup = true;
     }
 
