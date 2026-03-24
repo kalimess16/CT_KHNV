@@ -89,6 +89,7 @@ try {
                 $state = [
                     'rows' => [],
                     'groups' => [],
+                    'mergeRanges' => [],
                 ];
                 if ($error === '') {
                     $error = $inner->getMessage();
@@ -98,6 +99,7 @@ try {
             $state = [
                 'rows' => [],
                 'groups' => [],
+                'mergeRanges' => [],
             ];
         }
     }
@@ -107,20 +109,24 @@ $rows = $state['rows'] ?? [];
 $pgdGroups = $state['groups'] ?? [];
 $loanGroups = khnv_detect_loan_groups($rows);
 $reportYear = khnv_detect_report_year($rows);
-$maxRow = $rows ? max(array_keys($rows)) : 0;
+$dataStartRow = khnv_detect_data_start_row($rows);
+$headerRowCount = max(1, $dataStartRow - 1);
+$displayColumns = khnv_detect_used_columns($rows);
+$headerRows = khnv_build_sheet_header_rows($rows, $displayColumns, $headerRowCount, $state['mergeRanges'] ?? []);
 $groupCount = count($pgdGroups);
-$rowCount = max(0, $maxRow - 2);
-$sheetColumns = [];
-foreach ($loanGroups as $loanGroup) {
-    $sheetColumns[] = (string) ($loanGroup['start'] ?? '');
-    $sheetColumns[] = (string) ($loanGroup['adjust'] ?? '');
-    $sheetColumns[] = (string) ($loanGroup['target'] ?? '');
+$rowCount = 0;
+$formulaMap = [];
+foreach ($rows as $rowNum => $row) {
+    if ($rowNum >= $dataStartRow && khnv_row_has_content($row)) {
+        $rowCount++;
+    }
+    foreach (($row['cells'] ?? []) as $cell) {
+        if (!empty($cell['has_formula'])) {
+            $formulaMap[(string) $cell['ref']] = (string) ($cell['formula'] ?? '');
+        }
+    }
 }
-$tableColspan = 3 + count($sheetColumns);
-$groupStarts = [];
-foreach ($pgdGroups as $idx => $group) {
-    $groupStarts[(int) ($group['start'] ?? 0)] = $idx;
-}
+$tableColspan = count($displayColumns);
 $sourceFile = basename(KHNV_INPUT_XLSX);
 $statusText = 'Sẵn sàng chỉnh sửa và xuất file';
 if ($flash === 'saved') {
@@ -148,7 +154,7 @@ if ($flash === 'saved') {
         <div class="hero-copy">
             <div class="eyebrow">KHNV / CHITIEU / IMPORT & EXPORT</div>
             <h1>Nhập và xuất chỉ tiêu tín dụng</h1>
-            <p>Đọc dữ liệu từ <strong><?= khnv_h($sourceFile) ?></strong>, nhập file local theo chuẩn <strong>CTKHNV*.xlsx</strong>, chỉnh trực tiếp trên màn hình và xuất theo mẫu <strong>OUTPUT/<?= khnv_h(basename(KHNV_TEMPLATE_DOCX)) ?></strong>.</p>
+            <p>Đọc dữ liệu từ <strong><?= khnv_h($sourceFile) ?></strong>, nhập file local theo chuẩn <strong>CTKHNV*.xlsx</strong>, hiển thị trực tiếp theo cấu trúc workbook đang mở và xuất theo mẫu <strong>OUTPUT/<?= khnv_h(basename(KHNV_TEMPLATE_DOCX)) ?></strong>.</p>
         </div>
         <div class="hero-stats">
             <div class="stat-card">
@@ -172,7 +178,7 @@ if ($flash === 'saved') {
                 <span class="dot"></span>
                 <span><?= khnv_h($statusText) ?></span>
             </div>
-            <div class="hint">Các ô công thức sẽ tự tính lại khi bạn thay đổi cột nhập liệu.</div>
+            <div class="hint">Bảng đang bám theo số dòng, số cột và ô gộp trong workbook hiện tại.</div>
         </div>
         <div class="toolbar-actions">
             <form id="importForm" method="post" enctype="multipart/form-data" class="import-form">
@@ -213,82 +219,107 @@ if ($flash === 'saved') {
         <div class="table-wrap">
             <table class="sheet-table">
                 <colgroup>
-                    <col class="col-stt">
-                    <col class="col-pgd">
-                    <col class="col-xa">
-                    <?php foreach ($sheetColumns as $_sheetColumn): ?>
-                        <col class="col-num">
+                    <?php foreach ($displayColumns as $columnIndex => $column): ?>
+                        <?php
+                        $colClass = 'col-num';
+                        if ($columnIndex === 0) {
+                            $colClass = 'col-stt';
+                        } elseif ($columnIndex === 1) {
+                            $colClass = 'col-pgd';
+                        } elseif ($columnIndex === 2) {
+                            $colClass = 'col-xa';
+                        }
+                        ?>
+                        <col class="<?= khnv_h($colClass) ?>">
                     <?php endforeach; ?>
                 </colgroup>
                 <thead>
-                    <tr>
-                        <th rowspan="2" class="freeze-col freeze-col-1">STT</th>
-                        <th rowspan="2" class="freeze-col freeze-col-2">PGD</th>
-                        <th rowspan="2" class="freeze-col freeze-col-3">Xã</th>
-                        <?php foreach ($loanGroups as $loanGroup): ?>
-                            <th colspan="3" class="group-head"><?= khnv_h((string) ($loanGroup['label'] ?? '')) ?></th>
+                    <?php if ($loanGroups): ?>
+                        <tr>
+                            <th rowspan="2" class="freeze-col freeze-col-1">STT</th>
+                            <th rowspan="2" class="freeze-col freeze-col-2">PGD</th>
+                            <th rowspan="2" class="freeze-col freeze-col-3">Xã</th>
+                            <?php foreach ($loanGroups as $loanGroup): ?>
+                                <th colspan="3" class="group-head"><?= khnv_h((string) ($loanGroup['label'] ?? '')) ?></th>
+                            <?php endforeach; ?>
+                        </tr>
+                        <tr>
+                            <?php foreach ($loanGroups as $loanGroup): ?>
+                                <th><?= khnv_h(khnv_group_subtitle($loanGroup, 0, $reportYear)) ?></th>
+                                <th><?= khnv_h(khnv_group_subtitle($loanGroup, 1, $reportYear)) ?></th>
+                                <th><?= khnv_h(khnv_group_subtitle($loanGroup, 2, $reportYear)) ?></th>
+                            <?php endforeach; ?>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($headerRows as $headerRow): ?>
+                            <tr>
+                                <?php foreach (($headerRow['cells'] ?? []) as $headerCell): ?>
+                                    <?php
+                                    $freezeClass = '';
+                                    $index = (int) ($headerCell['index'] ?? 0);
+                                    if ($index === 1) {
+                                        $freezeClass = ' freeze-col freeze-col-1';
+                                    } elseif ($index === 2) {
+                                        $freezeClass = ' freeze-col freeze-col-2';
+                                    } elseif ($index === 3) {
+                                        $freezeClass = ' freeze-col freeze-col-3';
+                                    }
+                                    $groupHeadClass = ((int) ($headerCell['colspan'] ?? 1) > 1) ? ' group-head' : '';
+                                    ?>
+                                    <th
+                                        class="<?= khnv_h(trim($freezeClass . $groupHeadClass)) ?>"
+                                        colspan="<?= (int) ($headerCell['colspan'] ?? 1) ?>"
+                                        rowspan="<?= (int) ($headerCell['rowspan'] ?? 1) ?>"
+                                    >
+                                        <?= khnv_h((string) ($headerCell['value'] ?? '')) ?>
+                                    </th>
+                                <?php endforeach; ?>
+                            </tr>
                         <?php endforeach; ?>
-                    </tr>
-                    <tr>
-                        <?php foreach ($loanGroups as $loanGroup): ?>
-                            <th><?= khnv_h(khnv_group_subtitle($loanGroup, 0, $reportYear)) ?></th>
-                            <th><?= khnv_h(khnv_group_subtitle($loanGroup, 1, $reportYear)) ?></th>
-                            <th><?= khnv_h(khnv_group_subtitle($loanGroup, 2, $reportYear)) ?></th>
-                        <?php endforeach; ?>
-                    </tr>
+                    <?php endif; ?>
                 </thead>
                 <tbody>
                     <?php
                     ksort($rows);
                     foreach ($rows as $rowNum => $row):
-                        if ($rowNum < 3 || !khnv_row_has_content($row)) {
+                        if ($rowNum < $dataStartRow || !khnv_row_has_content($row)) {
                             continue;
                         }
-                        if (isset($groupStarts[$rowNum])) {
-                            $group = $pgdGroups[$groupStarts[$rowNum]];
-                            ?>
-                            <tr class="divider-row">
-                                <td colspan="<?= (int) $tableColspan ?>">
-                                    <span class="divider-label"><?= khnv_h((string) ($group['pgd'] ?? '')) ?></span>
-                                    <span class="divider-meta"><?= count((array) ($group['rows'] ?? [])) ?> đơn vị</span>
-                                </td>
-                            </tr>
-                            <?php
-                        }
-                        $stt = khnv_input_value($row['cells']['A'] ?? ['value' => '']);
-                        $pgd = khnv_input_value($row['cells']['B'] ?? ['value' => '']);
-                        $xa = khnv_input_value($row['cells']['C'] ?? ['value' => '']);
                         ?>
                         <tr class="data-row" data-sheet-row="<?= (int) $rowNum ?>">
-                            <td class="freeze-col freeze-col-1">
-                                <input class="cell cell-readonly" type="text" value="<?= khnv_h($stt) ?>" readonly>
-                            </td>
-                            <td class="freeze-col freeze-col-2">
-                                <input class="cell cell-text" type="text" data-ref="B<?= (int) $rowNum ?>" data-col="B" data-initial="<?= khnv_h($pgd) ?>" value="<?= khnv_h($pgd) ?>">
-                            </td>
-                            <td class="freeze-col freeze-col-3">
-                                <input class="cell cell-text" type="text" data-ref="C<?= (int) $rowNum ?>" data-col="C" data-initial="<?= khnv_h($xa) ?>" value="<?= khnv_h($xa) ?>">
-                            </td>
-                            <?php foreach ($sheetColumns as $col): ?>
+                            <?php foreach ($displayColumns as $columnIndex => $col): ?>
                                 <?php
-                                $cell = $row['cells'][$col] ?? ['value' => '', 'has_formula' => false];
-                                $value = khnv_input_value($cell);
-                                $readonly = !empty($cell['has_formula']) ? 'readonly' : '';
-                                $classes = ['cell', 'cell-num'];
-                                if (!empty($cell['has_formula'])) {
+                                $cell = $row['cells'][$col] ?? null;
+                                $value = khnv_input_value($cell ?? ['value' => '']);
+                                $isFormula = !empty($cell['has_formula']);
+                                $isReadonly = $cell === null || $isFormula || $col === 'A';
+                                $isText = $cell === null || !empty($cell['is_text']);
+                                $classes = ['cell', $isText ? 'cell-text' : 'cell-num'];
+                                if ($isFormula) {
                                     $classes[] = 'cell-formula';
                                 }
+                                if ($isReadonly) {
+                                    $classes[] = 'cell-readonly';
+                                }
+                                $freezeClass = '';
+                                if ($columnIndex === 0) {
+                                    $freezeClass = 'freeze-col freeze-col-1';
+                                } elseif ($columnIndex === 1) {
+                                    $freezeClass = 'freeze-col freeze-col-2';
+                                } elseif ($columnIndex === 2) {
+                                    $freezeClass = 'freeze-col freeze-col-3';
+                                }
                                 ?>
-                                <td>
+                                <td class="<?= khnv_h($freezeClass) ?>">
                                     <input
                                         class="<?= khnv_h(implode(' ', $classes)) ?>"
                                         type="text"
-                                        inputmode="decimal"
-                                        data-ref="<?= khnv_h($col . $rowNum) ?>"
+                                        <?= $isText ? '' : 'inputmode="decimal"' ?>
+                                        <?= $cell !== null ? 'data-ref="' . khnv_h($col . $rowNum) . '"' : '' ?>
                                         data-col="<?= khnv_h($col) ?>"
                                         data-initial="<?= khnv_h($value) ?>"
                                         value="<?= khnv_h($value) ?>"
-                                        <?= $readonly ?>
+                                        <?= $isReadonly ? 'readonly' : '' ?>
                                     >
                                 </td>
                             <?php endforeach; ?>
@@ -309,17 +340,7 @@ if ($flash === 'saved') {
     const importFile = document.getElementById('importFile');
     const exportBtn = document.getElementById('exportBtn');
     const initialView = <?= json_encode($view, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-    const groups = <?= json_encode(
-        array_map(
-            static fn(array $group): array => [
-                'base' => (string) ($group['start'] ?? ''),
-                'delta' => (string) ($group['adjust'] ?? ''),
-                'output' => (string) ($group['target'] ?? ''),
-            ],
-            $loanGroups
-        ),
-        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-    ) ?>;
+    const formulaCells = <?= json_encode($formulaMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
     function cleanNumber(value) {
         const raw = String(value || '').trim();
@@ -333,13 +354,6 @@ if ($flash === 'saved') {
         const rounded = Math.round(num * 100) / 100;
         const str = rounded.toFixed(2);
         return str.replace(/\.?0+$/, '').replace(/\.$/, '');
-    }
-
-    function parseNumber(value) {
-        const raw = cleanNumber(value);
-        if (raw === '') return 0;
-        const num = Number(raw);
-        return Number.isFinite(num) ? num : 0;
     }
 
     function formatNumber(value) {
@@ -361,33 +375,91 @@ if ($flash === 'saved') {
         return `${intPart}.${decimalPart}`;
     }
 
-    function getInput(row, col) {
-        return row.querySelector(`[data-col="${col}"]`);
+    function colToIndex(col) {
+        return String(col || '').toUpperCase().split('').reduce((total, ch) => (total * 26) + (ch.charCodeAt(0) - 64), 0);
     }
 
-    function recalcRow(row) {
-        for (const group of groups) {
-            const base = parseNumber(getInput(row, group.base)?.value);
-            const delta = parseNumber(getInput(row, group.delta)?.value);
-            const output = getInput(row, group.output);
-            if (output && output.hasAttribute('readonly')) {
-                const calculated = formatNumber(base + delta);
-                output.value = calculated;
-                output.dataset.cleanValue = calculated;
-                output.setAttribute('data-display', formatVND(calculated));
-            }
+    function indexToCol(index) {
+        let current = Number(index);
+        let col = '';
+        while (current > 0) {
+            current -= 1;
+            col = String.fromCharCode((current % 26) + 65) + col;
+            current = Math.floor(current / 26);
         }
+        return col;
+    }
+
+    function parseRef(ref) {
+        const match = String(ref || '').match(/^([A-Z]+)(\d+)$/i);
+        if (!match) return null;
+        return {
+            col: match[1].toUpperCase(),
+            row: Number(match[2]),
+        };
+    }
+
+    function getInputByRef(ref) {
+        return form.querySelector(`[data-ref="${ref}"]`);
+    }
+
+    function getNumericValueByRef(ref) {
+        const input = getInputByRef(ref);
+        if (!(input instanceof HTMLInputElement)) return 0;
+        const raw = input.dataset.cleanValue || cleanNumber(input.value);
+        const num = Number(raw);
+        return Number.isFinite(num) ? num : 0;
+    }
+
+    function evaluateFormula(formula) {
+        const raw = String(formula || '').replace(/\s+/g, '').replace(/^=/, '');
+        if (!raw) return null;
+
+        const sumMatch = raw.match(/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i);
+        if (sumMatch) {
+            const start = parseRef(sumMatch[1]);
+            const end = parseRef(sumMatch[2]);
+            if (!start || !end) return null;
+            let total = 0;
+            const startRow = Math.min(start.row, end.row);
+            const endRow = Math.max(start.row, end.row);
+            const startCol = Math.min(colToIndex(start.col), colToIndex(end.col));
+            const endCol = Math.max(colToIndex(start.col), colToIndex(end.col));
+            for (let row = startRow; row <= endRow; row += 1) {
+                for (let colIndex = startCol; colIndex <= endCol; colIndex += 1) {
+                    total += getNumericValueByRef(`${indexToCol(colIndex)}${row}`);
+                }
+            }
+            return total;
+        }
+
+        const binaryMatch = raw.match(/^([A-Z]+\d+)([+\-])([A-Z]+\d+)$/i);
+        if (binaryMatch) {
+            const left = getNumericValueByRef(binaryMatch[1].toUpperCase());
+            const right = getNumericValueByRef(binaryMatch[3].toUpperCase());
+            return binaryMatch[2] === '-' ? (left - right) : (left + right);
+        }
+
+        return null;
+    }
+
+    function syncCleanValue(input) {
+        if (!input.classList.contains('cell-num')) return;
+        const cleanVal = cleanNumber(input.value);
+        input.dataset.cleanValue = cleanVal;
     }
 
     function formatInputDisplay(input) {
         if (!input.classList.contains('cell-num')) return;
-        if (input.hasAttribute('readonly')) {
-            input.value = input.getAttribute('data-display') || input.value;
+        const cleanVal = input.dataset.cleanValue || cleanNumber(input.value);
+        input.dataset.cleanValue = cleanVal;
+        if (cleanVal === '') {
+            input.value = '';
             return;
         }
-        const cleanVal = cleanNumber(input.value);
-        input.dataset.cleanValue = cleanVal;
-        input.value = formatVND(cleanVal);
+        const display = formatVND(cleanVal);
+        input.dataset.display = display;
+        input.value = input.hasAttribute('readonly') ? display : display;
     }
 
     function showCleanValue(input) {
@@ -397,17 +469,29 @@ if ($flash === 'saved') {
         input.value = cleanVal;
     }
 
-    function syncCleanValue(input) {
-        if (!input.classList.contains('cell-num')) return;
-        if (input.hasAttribute('readonly')) return;
-        const cleanVal = cleanNumber(input.value);
-        input.dataset.cleanValue = cleanVal;
+    function recalcAllFormulas() {
+        Object.entries(formulaCells).forEach(([ref, formula]) => {
+            const input = getInputByRef(ref);
+            if (!(input instanceof HTMLInputElement)) return;
+            const computed = evaluateFormula(formula);
+            if (computed === null) return;
+            const cleanVal = formatNumber(computed);
+            input.dataset.cleanValue = cleanVal;
+            input.dataset.display = formatVND(cleanVal);
+            input.value = input.dataset.display || cleanVal;
+        });
     }
 
     function updateDirtyState() {
         const dirty = Array.from(form.querySelectorAll('[data-ref]')).some((input) => {
-            if (input.hasAttribute('readonly')) return false;
-            return input.value !== (input.dataset.initial ?? '');
+            if (!(input instanceof HTMLInputElement) || input.hasAttribute('readonly')) {
+                return false;
+            }
+            const initial = input.dataset.initial ?? '';
+            const current = input.classList.contains('cell-num')
+                ? cleanNumber(input.value)
+                : input.value.trim();
+            return current !== initial;
         });
         document.body.classList.toggle('dirty', dirty);
     }
@@ -416,10 +500,7 @@ if ($flash === 'saved') {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
         syncCleanValue(target);
-        const row = target.closest('tr[data-sheet-row]');
-        if (row) {
-            recalcRow(row);
-        }
+        recalcAllFormulas();
         updateDirtyState();
     });
 
@@ -432,6 +513,8 @@ if ($flash === 'saved') {
     form.addEventListener('blur', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
+        syncCleanValue(target);
+        recalcAllFormulas();
         formatInputDisplay(target);
     }, true);
 
@@ -441,9 +524,13 @@ if ($flash === 'saved') {
         if (action === 'export' || action === 'save') {
             const changes = {};
             form.querySelectorAll('[data-ref]').forEach((input) => {
-                if (input.hasAttribute('readonly')) return;
+                if (!(input instanceof HTMLInputElement) || input.hasAttribute('readonly')) {
+                    return;
+                }
                 const initial = input.dataset.initial ?? '';
-                const current = cleanNumber(input.value);
+                const current = input.classList.contains('cell-num')
+                    ? cleanNumber(input.value)
+                    : input.value.trim();
                 if (current !== initial) {
                     changes[input.dataset.ref] = current;
                 }
@@ -456,14 +543,14 @@ if ($flash === 'saved') {
         window.location.href = window.location.pathname;
     });
 
-    document.querySelectorAll('tr[data-sheet-row]').forEach((row) => {
-        recalcRow(row);
-        row.querySelectorAll('[data-col]').forEach((input) => {
-            if (input.classList.contains('cell-num')) {
-                syncCleanValue(input);
-                formatInputDisplay(input);
-            }
-        });
+    document.querySelectorAll('input.cell-num').forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) return;
+        syncCleanValue(input);
+    });
+    recalcAllFormulas();
+    document.querySelectorAll('input.cell-num').forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) return;
+        formatInputDisplay(input);
     });
     updateDirtyState();
 
