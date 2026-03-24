@@ -314,7 +314,7 @@ if ($flash === 'saved') {
                                     <input
                                         class="<?= khnv_h(implode(' ', $classes)) ?>"
                                         type="text"
-                                        <?= $isText ? '' : 'inputmode="decimal"' ?>
+                                        <?= $isText ? '' : 'inputmode="numeric"' ?>
                                         <?= $cell !== null ? 'data-ref="' . khnv_h($col . $rowNum) . '"' : '' ?>
                                         data-col="<?= khnv_h($col) ?>"
                                         data-initial="<?= khnv_h($value) ?>"
@@ -351,9 +351,7 @@ if ($flash === 'saved') {
         if (Math.abs(num) < 0.00000001 && num !== 0) {
             return '0';
         }
-        const rounded = Math.round(num * 100) / 100;
-        const str = rounded.toFixed(2);
-        return str.replace(/\.?0+$/, '').replace(/\.$/, '');
+        return String(Math.round(num));
     }
 
     function formatNumber(value) {
@@ -365,14 +363,7 @@ if ($flash === 'saved') {
     function formatVND(value) {
         const num = Number(value);
         if (!Number.isFinite(num)) return '';
-        const rounded = Math.round(num * 100) / 100;
-        const parts = rounded.toFixed(2).split('.');
-        const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        const decimalPart = parts[1];
-        if (decimalPart === '00') {
-            return intPart;
-        }
-        return `${intPart}.${decimalPart}`;
+        return String(Math.round(num)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
     function colToIndex(col) {
