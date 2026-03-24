@@ -223,7 +223,7 @@ function khnv_format_report_number($value): string
     if (!is_numeric($clean)) {
         return $clean;
     }
-    return number_format((int) round((float) $clean), 0, '.', ',');
+    return number_format((int) round((float) $clean), 0, ',', '.');
 }
 
 function khnv_safe_upper(string $value): string
