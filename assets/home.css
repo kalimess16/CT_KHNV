@@ -51,7 +51,7 @@ body {
 
 .page-head {
     width: 100%;
-    padding: 18px clamp(16px, 2vw, 30px) 10px;
+    padding: 12px clamp(16px, 2vw, 28px) 8px;
     border-radius: 0 0 30px 30px;
     background:
         radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 26%),
@@ -63,20 +63,20 @@ body {
 .brand-bar {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
 }
 
 .brand-logo {
-    flex: 0 0 92px;
+    flex: 0 0 78px;
     display: grid;
     place-items: center;
-    width: 92px;
-    height: 92px;
+    width: 78px;
+    height: 78px;
 }
 
 .brand-logo-image {
-    width: 88px;
-    height: 88px;
+    width: 74px;
+    height: 74px;
     object-fit: contain;
     filter: drop-shadow(0 6px 12px rgba(223, 18, 127, 0.14));
 }
@@ -101,9 +101,9 @@ body {
 }
 
 .page-head h1 {
-    margin: 8px 0 4px;
-    font-size: clamp(32px, 3vw, 50px);
-    line-height: 1.08;
+    margin: 6px 0 2px;
+    font-size: clamp(26px, 2.5vw, 42px);
+    line-height: 1.04;
     color: #ffffff;
 }
 
@@ -111,12 +111,12 @@ body {
     margin: 0;
     max-width: 1100px;
     color: rgba(255, 255, 255, 0.88);
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 15px;
+    line-height: 1.35;
 }
 
 .top-nav {
-    margin-top: 16px;
+    margin-top: 12px;
     position: relative;
     z-index: 5;
 }
@@ -231,8 +231,8 @@ body {
 
 .content-shell {
     width: 100%;
-    margin-top: 12px;
-    padding: 12px 0 0;
+    margin-top: 0;
+    padding: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
@@ -311,6 +311,7 @@ body {
 .feature-viewer {
     width: 100%;
     background: #ffffff;
+    margin-top: 0;
 }
 
 .feature-viewer-bar {
@@ -365,7 +366,7 @@ body {
 .feature-frame {
     display: block;
     width: 100%;
-    min-height: 420px;
+    min-height: 560px;
     border: 0;
     background: #ffffff;
 }
@@ -457,7 +458,7 @@ body {
     }
 
     .content-shell {
-        padding: 8px 0 0;
+        padding: 0;
         border-radius: 0;
     }
 
@@ -482,6 +483,6 @@ body {
     }
 
     .feature-frame {
-        min-height: 320px;
+        min-height: 480px;
     }
 }

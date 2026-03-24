@@ -43,7 +43,22 @@ Tài liệu này ghi nhớ các quy ước hiện tại của trang chủ `CT_KH
   - `CHITIEU/index.php?view=export`
 - Nếu cần chế độ nhúng riêng cho module, phải giữ nguyên nghiệp vụ hiện có và chỉ tinh chỉnh hiển thị để phù hợp khi mở trong trang chủ.
 
-## 6. Quy ước sửa tiếp
+## 6. Quy ước hiển thị module CHITIEU khi nhúng
+
+- Khi `CHITIEU` mở trong trang chủ, không hiển thị lại header riêng, topbar riêng hay khối hero cũ của module.
+- Trong chế độ nhúng, phần đầu của `CHITIEU` chỉ giữ lại đúng câu:
+  - `Nhập file local theo chuẩn CTKHNV*.xlsx`
+- Câu trên phải nằm trong khu toolbar/trạng thái của module, không nằm ở một khối riêng phía trên.
+- Khi bấm `Trang chủ KHNV` từ `CHITIEU` trong chế độ nhúng, không được mở lồng một trang chủ mới bên trong khung nhúng.
+- Vùng bảng của `CHITIEU` khi nhúng phải hiển thị theo layout rộng ở phần dưới của trang chủ, không để mất chức năng, không để khoảng trắng lớn bất thường phía dưới.
+- Ưu tiên tăng không gian theo chiều dọc của vùng cuộn bên phải, không kéo lệch bố cục theo chiều ngang.
+- Phần nhúng `CHITIEU` hiện đang dùng:
+  - `body.embedded .table-wrap { max-height: calc(100vh - 175px); }`
+- Phần nhúng `CHITIEU` hiện đang tụt vào hai bên:
+  - `5px` mỗi bên
+- Khi sửa tiếp, không để nội dung bị cắt ở mép trái làm mất chữ hoặc mất một phần nút/chức năng.
+
+## 7. Quy ước sửa tiếp
 
 - Khi sửa `CT_KHNV/index.php`, luôn kiểm tra:
   - `Kế hoạch` còn là chức năng riêng.
@@ -51,5 +66,10 @@ Tài liệu này ghi nhớ các quy ước hiện tại của trang chủ `CT_KH
   - `Kế hoạch` vẫn báo `Đang phát triển chờ` nếu chưa có module riêng.
   - `Chỉ tiêu` vẫn trỏ đúng vào module `CHITIEU`.
   - Chức năng hoạt động được tải trong vùng nội dung bên dưới thay vì điều hướng toàn trang.
+- Khi sửa `CHITIEU/CODE/index.php` hoặc `CHITIEU/CODE/style.css`, luôn kiểm tra:
+  - Chế độ nhúng vẫn hiển thị đủ toolbar, nút thao tác và bảng.
+  - Không sinh khoảng trắng lớn phía dưới bảng.
+  - Không làm mất chữ ở mép trái khi mở trong trang chủ.
 - Sau khi sửa `index.php`, nên kiểm tra lại cú pháp bằng:
   - `php -l index.php`
+  - `php -l CHITIEU\CODE\index.php`

@@ -167,6 +167,7 @@ if ($flash === 'saved') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chỉ tiêu KHNV</title>
+    <link rel="icon" type="image/png" href="<?= khnv_h($publicPrefix !== '' ? '../iconweb.png' : '../../iconweb.png') ?>">
     <link rel="stylesheet" href="<?= khnv_h($publicPrefix . 'style.css') ?>">
 </head>
 <?php
@@ -180,40 +181,13 @@ if ($embedded) {
 ?>
 <body class="<?= khnv_h(implode(' ', $bodyClasses)) ?>">
 <div class="page-shell">
-    <div class="page-topbar">
-        <a class="back-home" href="<?= khnv_h($homeHref) ?>"<?= $embedded ? ' target="_top"' : '' ?>>Trang chủ KHNV</a>
-        <span class="page-tag">Module Chỉ tiêu</span>
-    </div>
-
-    <header class="hero">
-        <div class="hero-copy">
-            <div class="eyebrow">KHNV / CHITIEU / IMPORT & EXPORT</div>
-            <h1>Nhập và xuất chỉ tiêu tín dụng</h1>
-            <p>Đọc dữ liệu từ <strong><?= khnv_h($sourceFile) ?></strong>, nhập file local theo chuẩn <strong>CTKHNV*.xlsx</strong>, hiển thị trực tiếp theo cấu trúc workbook đang mở và xuất theo mẫu <strong>OUTPUT/<?= khnv_h(basename(KHNV_TEMPLATE_DOCX)) ?></strong>.</p>
-        </div>
-        <div class="hero-stats">
-            <div class="stat-card">
-                <span class="stat-label">Số PGD</span>
-                <strong><?= (int) $groupCount ?></strong>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Số dòng dữ liệu</span>
-                <strong><?= (int) $rowCount ?></strong>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Nguồn Excel</span>
-                <strong><?= khnv_h($sourceFile) ?></strong>
-            </div>
-        </div>
-    </header>
-
     <section class="toolbar" id="actionToolbar">
         <div class="toolbar-info">
+            <div class="embedded-note">Nhập file từ local (máy tính) theo chuẩn <strong>CTKHNV*.xlsx</strong>.</div>
             <div class="status-line">
                 <span class="dot"></span>
                 <span><?= khnv_h($statusText) ?></span>
             </div>
-            <div class="hint">Bảng đang bám theo số dòng, số cột và ô gộp trong workbook hiện tại.</div>
         </div>
         <div class="toolbar-actions">
             <form id="importForm" method="post" enctype="multipart/form-data" class="import-form">
@@ -603,13 +577,27 @@ if ($embedded) {
 
     const isEmbedded = document.body.classList.contains('embedded');
     if (isEmbedded && window.parent !== window) {
-        const notifyParentHeight = () => {
+        const getEmbeddedContentHeight = () => {
             const root = document.querySelector('.page-shell');
-            const height = Math.ceil(
-                root instanceof HTMLElement
-                    ? root.getBoundingClientRect().height
-                    : Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
-            );
+            if (!(root instanceof HTMLElement)) {
+                return Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+            }
+
+            const candidates = Array.from(root.children).filter((node) => node instanceof HTMLElement);
+            const lastElement = candidates.length > 0 ? candidates[candidates.length - 1] : root;
+            if (!(lastElement instanceof HTMLElement)) {
+                return Math.ceil(root.getBoundingClientRect().height);
+            }
+
+            const rootRect = root.getBoundingClientRect();
+            const lastRect = lastElement.getBoundingClientRect();
+            const computed = window.getComputedStyle(lastElement);
+            const marginBottom = parseFloat(computed.marginBottom || '0') || 0;
+            return Math.ceil(lastRect.bottom - rootRect.top + marginBottom);
+        };
+
+        const notifyParentHeight = () => {
+            const height = getEmbeddedContentHeight();
             window.parent.postMessage({
                 type: 'khnv-embedded-height',
                 height,

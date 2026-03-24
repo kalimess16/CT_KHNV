@@ -43,6 +43,7 @@ $menuItems = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</title>
+    <link rel="icon" type="image/png" href="iconweb.png">
     <link rel="stylesheet" href="assets/home.css">
 </head>
 <body>
@@ -54,7 +55,6 @@ $menuItems = [
             </div>
 
             <div class="head-copy">
-                <span class="eyebrow">VBSP Workspace</span>
                 <h1>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</h1>
                 <p>Trang này hổ trợ công tác cá nhân trong phòng KHNV.</p>
             </div>
@@ -103,7 +103,7 @@ $menuItems = [
     <main class="content-shell">
         <section class="logo-showcase" id="homePlaceholder" aria-label="Logo trang chủ">
             <img class="logo-showcase-image" src="logo.png" alt="Logo VBSP">
-            <p class="logo-showcase-slogan">Thấu hiểu lòng dân, tận tâm, phục vụ</p>
+            <p class="logo-showcase-slogan">Thấu hiểu lòng dân - Tận tâm phục vụ</p>
         </section>
 
         <section class="feature-viewer" id="featureViewer" hidden aria-label="Vùng hiển thị chức năng">
@@ -186,7 +186,7 @@ $menuItems = [
         viewer.hidden = false;
         viewer.dataset.activeSrc = src;
         featureFrame.src = src;
-        featureFrame.style.height = '420px';
+        syncFeatureFrameHeight();
 
         if (viewerTitle instanceof HTMLElement) {
             viewerTitle.textContent = title;
@@ -203,7 +203,7 @@ $menuItems = [
 
         if (featureFrame instanceof HTMLIFrameElement) {
             featureFrame.src = 'about:blank';
-            featureFrame.style.height = '320px';
+            featureFrame.style.height = '';
         }
 
         if (placeholder instanceof HTMLElement) {
@@ -212,6 +212,16 @@ $menuItems = [
                 placeholder.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
+    }
+
+    function syncFeatureFrameHeight() {
+        if (!(viewer instanceof HTMLElement) || !(featureFrame instanceof HTMLIFrameElement) || viewer.hidden) {
+            return;
+        }
+
+        const top = viewer.getBoundingClientRect().top;
+        const available = window.innerHeight - top - 4;
+        featureFrame.style.height = `${Math.max(Math.floor(available), 660)}px`;
     }
 
     inlineLinks.forEach((link) => {
@@ -251,24 +261,8 @@ $menuItems = [
         }
     });
 
-    window.addEventListener('message', (event) => {
-        if (event.origin !== window.location.origin) {
-            return;
-        }
-
-        if (!(featureFrame instanceof HTMLIFrameElement)) {
-            return;
-        }
-
-        const data = event.data;
-        if (!data || data.type !== 'khnv-embedded-height') {
-            return;
-        }
-
-        const nextHeight = Number(data.height) || 0;
-        if (nextHeight > 0) {
-            featureFrame.style.height = `${Math.max(nextHeight + 4, 240)}px`;
-        }
+    window.addEventListener('resize', () => {
+        syncFeatureFrameHeight();
     });
 
     if (featureFrame instanceof HTMLIFrameElement) {
@@ -286,14 +280,11 @@ $menuItems = [
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return;
                 }
-
-                const root = frameDocument.querySelector('.page-shell');
-                if (root instanceof HTMLElement) {
-                    featureFrame.style.height = `${Math.max(Math.ceil(root.getBoundingClientRect().height) + 4, 240)}px`;
-                }
             } catch (error) {
                 console.warn('Không thể đồng bộ nội dung iframe:', error);
             }
+
+            syncFeatureFrameHeight();
         });
     }
 
