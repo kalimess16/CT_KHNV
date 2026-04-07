@@ -4,7 +4,7 @@ Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan t
 
 ## Quy uoc mac dinh bat buoc
 
-- Khi ban bao "doc file yeu cau", Codex se doc file nay truoc.
+- Khi ban bao `doc file yeu cau`, Codex se doc file nay truoc.
 - Sau do, Codex phai uu tien doc cac file `.md` lien quan trong du an de lay dung quy tac va bo canh truoc khi sua code.
 - Neu dung den trang chu hoac giao dien tong, uu tien doc `HOME_INDEX_RULES.md`.
 - Neu dung den luong import/export, DOCX, Excel, hoac module `CHITIEU`, uu tien doc `IMPORT_EXPORT_RULES.md`.
@@ -96,45 +96,23 @@ Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan t
 
 ## Noi dung yeu cau
 
-<!--
-Hay nhap yeu cau that su o ben duoi theo tung thu muc.
-
-Mau ngan:
-
-### Thu muc `CHITIEU/`
-- Trang thai: chua lam
-- Muc do uu tien: cao
-- File can:
-  - Doc truoc: `YEU_CAU_CODEX.md`, `IMPORT_EXPORT_RULES.md`
-  - File sua/tao: `CHITIEU/CODE/export.php`, `CHITIEU/OUTPUT/1.docx`
-- Yeu cau:
-  - Sua export de bo qua dong co gia tri dieu chinh bang 0 va NULL.
-- Cach kiem tra:
-  - Import 1 file mau, export DOCX, kiem tra khong con dong 0/NULL.
-- Ghi chu them:
-  - Giu nguyen bo cuc file mau dang active.
--->
-### Thu muc `CHITIEU/`
+### 1. Thu muc `CHITIEU/`
 
 - Trang thai: TODO
-- Muc do uu tien: cao
+- Muc do uu tien: 
 - File can:
   - Doc truoc: `YEU_CAU_CODEX.md`
   - Doc bat buoc neu sua module nay: `IMPORT_EXPORT_RULES.md`
   - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
   - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
 - Yeu cau:
-  + ĐỌC LẠI THƯ MỤC OUTPUT VÀ INPUT, tôi đã bổ sung 4 file: `IMPUT/TW.XLSX` và  `IMPUT/DP.XLSX` và `OUTPUT/Dieu_chinh_chi_tieu.docx` và `OUTPUT/To_trinh.docx`.
-  + nay tôi muốn sửa lại tính năng inport file => 1 layout 1 cái đính kèm tw 1 cái đính kèm dp theo INPUT.
-  + giữ nguyên trạng thái view ở web về excel
-  + trên layout index thì bổ sung thêm chức năng tích view `TW` vs `dp`. mỗi lần tích là load dữ liệu `tw.xlse` và `dp.xlsx`.
-  + Tính năng xuất chỉ tiêu thì => show layout chọn loại xuất theo `## 12. Ghi nhớ lựa chọn mẫu sau này` trong `IMPORT_EXPORT_RULES.md`
-  + Khi tích vào loại xuất và nhán xuất thì sẽ xuất ra theo  `## 12. Ghi nhớ lựa chọn mẫu sau này` trong `IMPORT_EXPORT_RULES.md`
-- Cach kiem tra:
-  + vào chức năng tiêu chi là có thể thao tác được các thông tin trong mục yêu cầu trên
+  - trên thu mục `output/dieu_chinh_chi_tieu.docs` có thẻ `{{phong_giao_dich}}` hiện không lấy được số liệu
+  - thẻ `{{phong_giao_dich}}` thì sẽ lấy trên PGD trong 2 file excel, nó tương tự như thẻ - `{{ten_pgd_tw}}` và `{{ten_pgd_dp}}`.
+  - tôi muốn `output/dieu_chinh_chi_tieu.docs` là lấy số liệu của 1 phòng cho vào mẫu, sau khi xong 1 phòng Giao dịch thì sẽ tiếp tục làm mẫu PGD tiếp theo
+- Cach kiem tra: ctr + F5 , vào chỉ tiêu / xuất báo cáo / tt là thấy kết quả
 - Ghi chu them:
   - Bổ sung thêm css nếu cần.
-  - Neu co file mau dang active thi ghi ro ten file.
+  - File mau dang active: `CHITIEU/OUTPUT/Dieu_chinh_chi_tieu.docx`, `CHITIEU/OUTPUT/To_trinh.docx`.
   - khong duoc sua ve filter, placeholder, bo cuc thi ghi ro tai day.
   - Cập nhật mới lại các file `.md` liên quan.
-
+  - Da doi giao dien thanh 2 nut gon `Import Excel` va `Xuat DOCX`; chi khi bam moi hien layout con de thao tac.

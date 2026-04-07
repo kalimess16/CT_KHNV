@@ -30,7 +30,7 @@ $menuItems = [
                 'label' => 'Xuất tờ trình CTTD',
                 'description' => 'Hổ trợ xuất tờ trình điều chỉnh kết hoạch.',
                 'available' => true,
-                'href' => 'CHITIEU/index.php?view=export',
+                'href' => 'CHITIEU/index.php',
             ],
         ],
     ],
@@ -49,7 +49,7 @@ $menuItems = [
 <body>
 <div class="page-shell">
     <header class="page-head">
-        <div class="brand-bar">
+        <button type="button" class="brand-bar brand-home-trigger" id="homeBrandTrigger" aria-label="Về trang chủ KHNV">
             <div class="brand-logo">
                 <img class="brand-logo-image" src="logo.png" alt="Logo VBSP">
             </div>
@@ -58,7 +58,7 @@ $menuItems = [
                 <h1>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</h1>
                 <p>Trang này hổ trợ công tác cá nhân trong phòng KHNV.</p>
             </div>
-        </div>
+        </button>
 
         <nav class="top-nav" aria-label="Điều hướng chính">
             <ul class="top-menu">
@@ -76,7 +76,6 @@ $menuItems = [
                                         class="dropdown-link js-inline-feature"
                                         href="<?= home_h((string) $child['href']) ?>"
                                         data-inline-src="<?= home_h(home_inline_src((string) $child['href'])) ?>"
-                                        data-feature-title="<?= home_h($child['label']) ?>"
                                     >
                                 <?php else: ?>
                                     <button
@@ -107,14 +106,6 @@ $menuItems = [
         </section>
 
         <section class="feature-viewer" id="featureViewer" hidden aria-label="Vùng hiển thị chức năng">
-            <div class="feature-viewer-bar">
-                <div class="feature-viewer-copy">
-                    <span class="feature-viewer-kicker">Chức năng đang mở</span>
-                    <strong id="featureViewerTitle">Đang tải chức năng</strong>
-                </div>
-                <button type="button" class="feature-viewer-close" id="featureViewerClose">Đóng</button>
-            </div>
-
             <iframe
                 id="featureFrame"
                 class="feature-frame"
@@ -124,16 +115,19 @@ $menuItems = [
             ></iframe>
         </section>
     </main>
+
+    <footer class="page-footer" aria-label="Thông tin cuối trang">
+        <span>Creat by <strong>@TinHoc_DN</strong></span>
+    </footer>
 </div>
 
 <script>
 (() => {
     const items = document.querySelectorAll('.top-item');
     const inlineLinks = document.querySelectorAll('.js-inline-feature');
+    const homeBrandTrigger = document.getElementById('homeBrandTrigger');
     const placeholder = document.getElementById('homePlaceholder');
     const viewer = document.getElementById('featureViewer');
-    const viewerTitle = document.getElementById('featureViewerTitle');
-    const viewerClose = document.getElementById('featureViewerClose');
     const featureFrame = document.getElementById('featureFrame');
     const homePath = new URL(window.location.href).pathname;
 
@@ -165,16 +159,13 @@ $menuItems = [
         });
     });
 
-    function openInlineFeature(src, title) {
+    function openInlineFeature(src) {
         if (!(viewer instanceof HTMLElement) || !(featureFrame instanceof HTMLIFrameElement)) {
             return;
         }
 
         const currentSrc = viewer.dataset.activeSrc || '';
         if (!viewer.hidden && currentSrc === src) {
-            if (viewerTitle instanceof HTMLElement) {
-                viewerTitle.textContent = title;
-            }
             viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
@@ -187,10 +178,6 @@ $menuItems = [
         viewer.dataset.activeSrc = src;
         featureFrame.src = src;
         syncFeatureFrameHeight();
-
-        if (viewerTitle instanceof HTMLElement) {
-            viewerTitle.textContent = title;
-        }
 
         viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -229,19 +216,21 @@ $menuItems = [
             event.preventDefault();
 
             const src = link.getAttribute('data-inline-src') || link.getAttribute('href');
-            const title = link.getAttribute('data-feature-title') || 'Chức năng';
             if (!src) {
                 return;
             }
 
             closeAll();
-            openInlineFeature(src, title);
+            openInlineFeature(src);
         });
     });
 
-    if (viewerClose instanceof HTMLButtonElement) {
-        viewerClose.addEventListener('click', () => {
+    if (homeBrandTrigger instanceof HTMLButtonElement) {
+        homeBrandTrigger.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeAll();
             resetToHomePlaceholder();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     }
 

@@ -2,14 +2,109 @@
 
 
 const KHNV_BASE_DIR = __DIR__ . '/..';
-const KHNV_INPUT_XLSX = KHNV_BASE_DIR . '/INPUT/test.xlsx';
-const KHNV_TEMPLATE_DOCX_SAMPLE_1 = KHNV_BASE_DIR . '/OUTPUT/MAU.docx';
-const KHNV_TEMPLATE_DOCX_SAMPLE_2 = KHNV_BASE_DIR . '/OUTPUT/MAU_NEW.docx';
-const KHNV_TEMPLATE_DOCX_SAMPLE_3 = KHNV_BASE_DIR . '/OUTPUT/1.docx';
-const KHNV_TEMPLATE_DOCX_ACTIVE = KHNV_TEMPLATE_DOCX_SAMPLE_3;
-const KHNV_TEMPLATE_DOCX = KHNV_TEMPLATE_DOCX_ACTIVE;
+const KHNV_INPUT_DIR = KHNV_BASE_DIR . '/INPUT';
+const KHNV_OUTPUT_DIR = KHNV_BASE_DIR . '/OUTPUT';
+const KHNV_DEFAULT_WORKBOOK_KEY = 'tw';
+const KHNV_DEFAULT_EXPORT_MODE = 'TT';
+const KHNV_TEMPLATE_DOCX_PGD_XA = KHNV_OUTPUT_DIR . '/Dieu_chinh_chi_tieu.docx';
+const KHNV_TEMPLATE_DOCX_TT_PGD = KHNV_OUTPUT_DIR . '/To_trinh.docx';
 const KHNV_MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const KHNV_WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+function khnv_workbook_configs(): array
+{
+    return [
+        'tw' => [
+            'key' => 'tw',
+            'label' => 'TW',
+            'title' => 'Nguon Trung uong',
+            'path' => KHNV_INPUT_DIR . '/TW.xlsx',
+            'upload_prefix' => 'CTKHNV_TW',
+        ],
+        'dp' => [
+            'key' => 'dp',
+            'label' => 'DP',
+            'title' => 'Nguon dia phuong',
+            'path' => KHNV_INPUT_DIR . '/DP.xlsx',
+            'upload_prefix' => 'CTKHNV_DP',
+        ],
+    ];
+}
+
+function khnv_export_mode_configs(): array
+{
+    return [
+        'TT' => [
+            'key' => 'TT',
+            'label' => 'TT',
+            'title' => 'Dieu chinh chi tieu',
+            'template' => KHNV_TEMPLATE_DOCX_PGD_XA,
+            'download_name' => 'Dieu_chinh_chi_tieu.docx',
+        ],
+        'DMDN' => [
+            'key' => 'DMDN',
+            'label' => 'DMDN',
+            'title' => 'To trinh',
+            'template' => KHNV_TEMPLATE_DOCX_TT_PGD,
+            'download_name' => 'To_trinh.docx',
+        ],
+        'ALL' => [
+            'key' => 'ALL',
+            'label' => 'ALL',
+            'title' => 'Ca hai mau',
+            'download_name' => 'Xuat_chi_tieu.zip',
+        ],
+    ];
+}
+
+function khnv_normalize_workbook_key(?string $value): string
+{
+    $value = strtolower(trim((string) $value));
+    return array_key_exists($value, khnv_workbook_configs()) ? $value : KHNV_DEFAULT_WORKBOOK_KEY;
+}
+
+function khnv_get_workbook_config(?string $key): array
+{
+    $configs = khnv_workbook_configs();
+    return $configs[khnv_normalize_workbook_key($key)] ?? $configs[KHNV_DEFAULT_WORKBOOK_KEY];
+}
+
+function khnv_get_workbook_path(?string $key): string
+{
+    return (string) (khnv_get_workbook_config($key)['path'] ?? '');
+}
+
+function khnv_get_workbook_label(?string $key): string
+{
+    return (string) (khnv_get_workbook_config($key)['label'] ?? '');
+}
+
+function khnv_get_workbook_title(?string $key): string
+{
+    return (string) (khnv_get_workbook_config($key)['title'] ?? '');
+}
+
+function khnv_normalize_export_mode(?string $value): string
+{
+    $value = strtoupper(trim((string) $value));
+    return array_key_exists($value, khnv_export_mode_configs()) ? $value : KHNV_DEFAULT_EXPORT_MODE;
+}
+
+function khnv_get_export_mode_config(?string $mode): array
+{
+    $configs = khnv_export_mode_configs();
+    return $configs[khnv_normalize_export_mode($mode)] ?? $configs[KHNV_DEFAULT_EXPORT_MODE];
+}
+
+function khnv_parse_all_workbooks(): array
+{
+    $states = [];
+    foreach (khnv_workbook_configs() as $key => $config) {
+        $states[$key] = khnv_parse_workbook((string) ($config['path'] ?? ''));
+    }
+
+    return $states;
+}
 
 function khnv_is_loopback_host(string $host): bool
 {
@@ -175,7 +270,29 @@ function khnv_detect_report_year(array $rows, int $fallback = 2026): int
 {
     $rowNumbers = array_keys($rows);
     sort($rowNumbers);
-    $scanRows = array_values(array_unique(array_merge([1, 2], $rowNumbers)));
+    $scanRows = array_values(array_unique(array_merge([2, 1, 3], $rowNumbers)));
+    $contextPatterns = [
+        '/k[ếe]\s*ho[ạa]ch.*?(?:n[aă]m)\s*((?:19|20)\d{2})/iu',
+        '/ch[ỉi]\s*ti[êe]u.*?(?:n[aă]m)\s*((?:19|20)\d{2})/iu',
+        '/(?:n[aă]m)\s*((?:19|20)\d{2})/iu',
+    ];
+
+    foreach ($contextPatterns as $pattern) {
+        foreach ($scanRows as $rowNum) {
+            if (!isset($rows[$rowNum]['cells'])) {
+                continue;
+            }
+            foreach (($rows[$rowNum]['cells'] ?? []) as $cell) {
+                $value = khnv_normalize_cell_text((string) ($cell['value'] ?? ''));
+                if ($value === '') {
+                    continue;
+                }
+                if (preg_match($pattern, $value, $m)) {
+                    return (int) $m[1];
+                }
+            }
+        }
+    }
 
     foreach ($scanRows as $rowNum) {
         if (!isset($rows[$rowNum]['cells'])) {

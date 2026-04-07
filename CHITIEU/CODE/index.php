@@ -5,9 +5,12 @@ require __DIR__ . '/data.php';
 khnv_redirect_localhost_to_ip();
 
 $publicPrefix = defined('KHNV_PUBLIC_PREFIX') ? KHNV_PUBLIC_PREFIX : '';
-$homeHref = defined('KHNV_HOME_HREF') ? KHNV_HOME_HREF : '../../index.php';
-$selfUrl = defined('KHNV_SELF_URL') ? KHNV_SELF_URL : 'index.php';
+$selfBaseUrl = defined('KHNV_SELF_URL') ? KHNV_SELF_URL : 'index.php';
 $embedded = (string) ($_GET['embedded'] ?? '') === '1';
+$view = (string) ($_GET['view'] ?? '');
+$activePanel = '';
+$dataset = khnv_normalize_workbook_key($_POST['dataset'] ?? $_GET['dataset'] ?? KHNV_DEFAULT_WORKBOOK_KEY);
+$exportMode = khnv_normalize_export_mode($_POST['export_mode'] ?? $_GET['export_mode'] ?? KHNV_DEFAULT_EXPORT_MODE);
 
 function khnv_h(string $value): string
 {
@@ -39,6 +42,7 @@ function khnv_row_has_content(array $row): bool
             return true;
         }
     }
+
     return false;
 }
 
@@ -63,54 +67,65 @@ function khnv_group_subtitle(array $group, int $index, int $reportYear): string
     return $defaults[$index] ?? '';
 }
 
-$flash = $_GET['status'] ?? '';
-$view = $_GET['view'] ?? '';
+$workbookConfigs = khnv_workbook_configs();
+$exportModeConfigs = khnv_export_mode_configs();
+$currentWorkbook = khnv_get_workbook_config($dataset);
+$currentWorkbookPath = (string) ($currentWorkbook['path'] ?? '');
+$flash = (string) ($_GET['status'] ?? '');
+$importedKey = khnv_normalize_workbook_key($_GET['imported'] ?? $dataset);
+$zipArchiveAvailable = class_exists('ZipArchive');
 $error = '';
 $state = null;
-$zipArchiveAvailable = class_exists('ZipArchive');
-$preservedParams = [];
-if ($view !== '') {
-    $preservedParams['view'] = (string) $view;
-}
-if ($embedded) {
-    $preservedParams['embedded'] = '1';
-}
-$selfUrl = khnv_url_with_query($selfUrl, $preservedParams);
+
+$baseParams = [
+    'embedded' => $embedded ? '1' : null,
+];
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
 
         if ($action === 'import') {
-            khnv_import_uploaded_workbook($_FILES['import_file'] ?? []);
-            header('Location: ' . khnv_url_with_query($selfUrl, ['status' => 'imported']));
+            $expectedKey = khnv_normalize_workbook_key($_POST['workbook_key'] ?? $dataset);
+            $importedKey = khnv_import_uploaded_workbook($_FILES['import_file'] ?? [], $expectedKey);
+            header('Location: ' . khnv_url_with_query($selfBaseUrl, array_merge($baseParams, [
+                'dataset' => $importedKey,
+                'status' => 'imported',
+                'imported' => $importedKey,
+            ])));
             exit;
         }
 
         $payload = khnv_collect_payload();
 
         if ($action === 'save') {
-            khnv_save_workbook(KHNV_INPUT_XLSX, $payload);
-            header('Location: ' . khnv_url_with_query($selfUrl, ['status' => 'saved']));
+            khnv_save_workbook($currentWorkbookPath, $payload);
+            header('Location: ' . khnv_url_with_query($selfBaseUrl, array_merge($baseParams, [
+                'dataset' => $dataset,
+                'status' => 'saved',
+            ])));
             exit;
         }
 
         if ($action === 'export') {
-            $state = khnv_parse_workbook(KHNV_INPUT_XLSX);
-            khnv_export_docx_download($state, KHNV_TEMPLATE_DOCX, 'Xuat_chi_tieu.docx');
+            $states = khnv_parse_all_workbooks();
+            if ($payload !== []) {
+                khnv_apply_changes($states[$dataset], $payload);
+            }
+            khnv_export_mode_download($states, (string) ($_POST['export_mode'] ?? KHNV_DEFAULT_EXPORT_MODE));
             exit;
         }
     }
 
     if ($state === null) {
-        $state = khnv_parse_workbook(KHNV_INPUT_XLSX);
+        $state = khnv_parse_workbook($currentWorkbookPath);
     }
 } catch (Throwable $e) {
     $error = $e->getMessage();
     if ($state === null) {
         if ($zipArchiveAvailable) {
             try {
-                $state = khnv_parse_workbook(KHNV_INPUT_XLSX);
+                $state = khnv_parse_workbook($currentWorkbookPath);
             } catch (Throwable $inner) {
                 $state = [
                     'rows' => [],
@@ -132,33 +147,31 @@ try {
 }
 
 $rows = $state['rows'] ?? [];
-$pgdGroups = $state['groups'] ?? [];
 $loanGroups = khnv_detect_loan_groups($rows);
 $reportYear = khnv_detect_report_year($rows);
 $dataStartRow = khnv_detect_data_start_row($rows);
-$headerRowCount = max(1, $dataStartRow - 1);
 $displayColumns = khnv_detect_used_columns($rows);
+$headerRowCount = max(1, $dataStartRow - 1);
 $headerRows = khnv_build_sheet_header_rows($rows, $displayColumns, $headerRowCount, $state['mergeRanges'] ?? []);
-$groupCount = count($pgdGroups);
-$rowCount = 0;
 $formulaMap = [];
-foreach ($rows as $rowNum => $row) {
-    if ($rowNum >= $dataStartRow && khnv_row_has_content($row)) {
-        $rowCount++;
-    }
+
+foreach ($rows as $row) {
     foreach (($row['cells'] ?? []) as $cell) {
         if (!empty($cell['has_formula'])) {
-            $formulaMap[(string) $cell['ref']] = (string) ($cell['formula'] ?? '');
+            $formulaMap[(string) ($cell['ref'] ?? '')] = (string) ($cell['formula'] ?? '');
         }
     }
 }
-$tableColspan = count($displayColumns);
-$sourceFile = basename(KHNV_INPUT_XLSX);
-$statusText = 'Sẵn sàng chỉnh sửa và xuất file';
+
+$sourceFile = basename($currentWorkbookPath);
+$currentWorkbookLabel = khnv_get_workbook_label($dataset);
+$currentWorkbookTitle = khnv_get_workbook_title($dataset);
+$statusText = 'Đang xem ' . $currentWorkbookLabel . ' từ ' . $sourceFile . '.';
 if ($flash === 'saved') {
-    $statusText = 'Đã lưu trực tiếp vào ' . $sourceFile;
+    $statusText = 'Đã lưu cập nhật trực tiếp vào ' . $sourceFile . '.';
 } elseif ($flash === 'imported') {
-    $statusText = 'Đã import file local và thay thế ' . $sourceFile;
+    $importedFile = basename(khnv_get_workbook_path($importedKey));
+    $statusText = 'Đã import file local và thay thế ' . $importedFile . '.';
 }
 ?>
 <!DOCTYPE html>
@@ -173,38 +186,153 @@ if ($flash === 'saved') {
 <?php
 $bodyClasses = [];
 if ($view !== '') {
-    $bodyClasses[] = 'view-' . preg_replace('/[^a-z0-9_-]/i', '', (string) $view);
+    $bodyClasses[] = 'view-' . preg_replace('/[^a-z0-9_-]/i', '', $view);
 }
 if ($embedded) {
     $bodyClasses[] = 'embedded';
 }
+$bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
 ?>
 <body class="<?= khnv_h(implode(' ', $bodyClasses)) ?>">
 <div class="page-shell">
     <section class="toolbar" id="actionToolbar">
-        <div class="toolbar-info">
-            <div class="embedded-note">Nhập file từ local (máy tính) theo chuẩn <strong>CTKHNV*.xlsx</strong>.</div>
-            <div class="status-line">
-                <span class="dot"></span>
-                <span><?= khnv_h($statusText) ?></span>
+        <?php
+        $importLauncherUrl = khnv_url_with_query($selfBaseUrl, array_merge($baseParams, [
+            'dataset' => $dataset,
+        ]));
+        $exportLauncherUrl = khnv_url_with_query($selfBaseUrl, array_merge($baseParams, [
+            'dataset' => $dataset,
+        ]));
+        ?>
+
+        <div class="toolbar-top">
+            <div class="toolbar-info">
+                <div class="embedded-note">Nhập file local theo chuẩn <strong>CTKHNV_DP/TW*.xlsx</strong>.</div>
+                <div class="status-line">
+                    <span class="dot"></span>
+                    <span><?= khnv_h($statusText) ?></span>
+                </div>
+            </div>
+
+            <div class="action-launchers" id="actionLaunchers">
+                <a
+                    class="panel-launcher panel-launcher-import<?= $activePanel === 'import' ? ' active' : '' ?>"
+                    href="<?= khnv_h($importLauncherUrl) ?>"
+                    data-panel-target="import"
+                    aria-controls="importPanel"
+                    aria-expanded="<?= $activePanel === 'import' ? 'true' : 'false' ?>"
+                    role="button"
+                >
+                    <span class="panel-launcher-kicker">Import Excel</span>
+                </a>
+
+                <a
+                    class="panel-launcher panel-launcher-export<?= $activePanel === 'export' ? ' active' : '' ?>"
+                    href="<?= khnv_h($exportLauncherUrl) ?>"
+                    data-panel-target="export"
+                    aria-controls="exportPanel"
+                    aria-expanded="<?= $activePanel === 'export' ? 'true' : 'false' ?>"
+                    role="button"
+                >
+                    <span class="panel-launcher-kicker">Xuất DOCX</span>
+                </a>
+            </div>
+
+            <div class="toolbar-side">
+                <div class="source-switch" id="datasetSwitch">
+                    <?php foreach ($workbookConfigs as $key => $config): ?>
+                        <?php
+                        $switchUrl = khnv_url_with_query($selfBaseUrl, array_merge($baseParams, ['dataset' => $key]));
+                        $switchClasses = ['source-link'];
+                        if ($dataset === $key) {
+                            $switchClasses[] = 'active';
+                        }
+                        ?>
+                        <a class="<?= khnv_h(implode(' ', $switchClasses)) ?>" href="<?= khnv_h($switchUrl) ?>">
+                            <span><?= khnv_h((string) ($config['label'] ?? '')) ?></span>
+                            <small><?= khnv_h(basename((string) ($config['path'] ?? ''))) ?></small>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="toolbar-actions">
+                    <button type="button" class="btn btn-ghost" id="reloadBtn">Đọc lại mẫu</button>
+                    <button type="submit" form="sheetForm" name="action" value="save" class="btn btn-primary">Lưu cập nhật</button>
+                </div>
             </div>
         </div>
-        <div class="toolbar-actions">
-            <form id="importForm" method="post" enctype="multipart/form-data" class="import-form">
-                <input
-                    type="file"
-                    id="importFile"
-                    name="import_file"
-                    class="import-input"
-                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    required
-                >
-                <button type="submit" name="action" value="import" class="btn btn-secondary">Nhập chỉ tiêu từ Excel</button>
+
+        <div class="toolbar-panels<?= $activePanel !== '' ? ' has-active-panel' : '' ?>" id="toolbarPanels">
+            <form
+                method="post"
+                enctype="multipart/form-data"
+                class="action-card action-panel import-card<?= $activePanel === 'import' ? ' is-active' : '' ?>"
+                id="importPanel"
+                data-panel="import"
+                <?= $activePanel === 'import' ? '' : 'hidden' ?>
+            >
+                <div class="action-card-copy">
+                    <span class="card-kicker">Import Excel</span>
+                    <strong>Nhập lại workbook nguồn</strong>
+                    <span class="card-meta">Sau khi mở panel, chọn đúng nguồn `TW/DP`, chọn file local rồi nhập vào workbook cần thay.</span>
+                </div>
+                <div class="action-card-controls">
+                    <div class="choice-group">
+                        <?php foreach ($workbookConfigs as $key => $config): ?>
+                            <?php $checked = $dataset === $key; ?>
+                            <label class="choice-pill<?= $checked ? ' active' : '' ?>">
+                                <input type="radio" name="workbook_key" value="<?= khnv_h($key) ?>" <?= $checked ? 'checked' : '' ?> <?= $activePanel === 'import' ? '' : 'disabled' ?>>
+                                <span><?= khnv_h((string) ($config['label'] ?? '')) ?></span>
+                                <small><?= khnv_h((string) ($config['title'] ?? '')) ?></small>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <input
+                        type="file"
+                        name="import_file"
+                        class="import-input"
+                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        <?= $activePanel === 'import' ? '' : 'disabled' ?>
+                        required
+                    >
+                    <button type="submit" name="action" value="import" class="btn btn-secondary" id="importBtn" <?= $activePanel === 'import' ? '' : 'disabled' ?>>Nhập file Excel</button>
+                </div>
             </form>
-            <button type="button" class="btn btn-ghost" id="reloadBtn">Đọc lại mẫu</button>
-            <button type="submit" form="sheetForm" name="action" value="save" class="btn btn-primary">Lưu cập nhật</button>
-            <button type="submit" form="sheetForm" name="action" value="export" class="btn btn-accent" id="exportBtn">Xuất chỉ tiêu tín dụng</button>
+
+            <div
+                class="action-card action-panel export-card<?= $activePanel === 'export' ? ' is-active' : '' ?>"
+                id="exportPanel"
+                data-panel="export"
+                <?= $activePanel === 'export' ? '' : 'hidden' ?>
+            >
+                <div class="action-card-copy">
+                    <span class="card-kicker">Xuất DOCX</span>
+                    <strong>Chọn mẫu và tải xuống</strong>
+                    <span class="card-meta">Sau khi mở panel, chọn loại mẫu cần lấy rồi bấm xuất một lần.</span>
+                </div>
+                <div class="action-card-controls">
+                    <div class="choice-group export-options">
+                        <?php foreach ($exportModeConfigs as $modeKey => $config): ?>
+                            <?php $checked = $exportMode === $modeKey; ?>
+                            <label class="choice-pill export-option<?= $checked ? ' active' : '' ?>">
+                                <input
+                                    type="radio"
+                                    name="export_mode"
+                                    value="<?= khnv_h($modeKey) ?>"
+                                    form="sheetForm"
+                                    <?= $checked ? 'checked' : '' ?>
+                                    <?= $activePanel === 'export' ? '' : 'disabled' ?>
+                                >
+                                <span><?= khnv_h((string) ($config['label'] ?? '')) ?></span>
+                                <small><?= khnv_h((string) ($config['title'] ?? '')) ?></small>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="submit" form="sheetForm" name="action" value="export" class="btn btn-accent" id="exportBtn" <?= $activePanel === 'export' ? '' : 'disabled' ?>>Xuất chỉ tiêu tín dụng</button>
+                </div>
+            </div>
         </div>
+
     </section>
 
     <?php if ($flash === 'saved'): ?>
@@ -213,7 +341,7 @@ if ($embedded) {
         </section>
     <?php elseif ($flash === 'imported'): ?>
         <section class="notice notice-success">
-            Import thành công. File local đã thay thế <strong><?= khnv_h($sourceFile) ?></strong> và bạn có thể bấm <strong>Đọc lại mẫu</strong> để nạp dữ liệu mới.
+            Import thành công. File local đã thay thế <strong><?= khnv_h(basename(khnv_get_workbook_path($importedKey))) ?></strong> và bạn có thể bấm <strong>Đọc lại mẫu</strong> để nạp dữ liệu mới.
         </section>
     <?php endif; ?>
 
@@ -224,6 +352,7 @@ if ($embedded) {
     <?php endif; ?>
 
     <form id="sheetForm" method="post" class="sheet-form" autocomplete="off">
+        <input type="hidden" name="dataset" value="<?= khnv_h($dataset) ?>">
         <textarea id="payload" name="payload" hidden></textarea>
         <div class="table-wrap">
             <table class="sheet-table">
@@ -345,11 +474,19 @@ if ($embedded) {
     const form = document.getElementById('sheetForm');
     const payload = document.getElementById('payload');
     const reloadBtn = document.getElementById('reloadBtn');
-    const importForm = document.getElementById('importForm');
-    const importFile = document.getElementById('importFile');
+    const toolbarPanels = document.getElementById('toolbarPanels');
+    const panelLaunchers = Array.from(document.querySelectorAll('[data-panel-target]'));
+    const importPanel = document.getElementById('importPanel');
+    const exportPanel = document.getElementById('exportPanel');
     const exportBtn = document.getElementById('exportBtn');
-    const initialView = <?= json_encode($view, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    const initialView = <?= json_encode($activePanel, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const formulaCells = <?= json_encode($formulaMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    const supportedPanels = new Set(['import', 'export']);
+    const panels = {
+        import: importPanel instanceof HTMLElement ? importPanel : null,
+        export: exportPanel instanceof HTMLElement ? exportPanel : null,
+    };
+    let currentPanel = supportedPanels.has(initialView) ? initialView : '';
 
     function cleanNumber(value) {
         const raw = String(value || '').trim();
@@ -445,8 +582,7 @@ if ($embedded) {
 
     function syncCleanValue(input) {
         if (!input.classList.contains('cell-num')) return;
-        const cleanVal = cleanNumber(input.value);
-        input.dataset.cleanValue = cleanVal;
+        input.dataset.cleanValue = cleanNumber(input.value);
     }
 
     function formatInputDisplay(input) {
@@ -459,14 +595,13 @@ if ($embedded) {
         }
         const display = formatVND(cleanVal);
         input.dataset.display = display;
-        input.value = input.hasAttribute('readonly') ? display : display;
+        input.value = display;
     }
 
     function showCleanValue(input) {
         if (!input.classList.contains('cell-num')) return;
         if (input.hasAttribute('readonly')) return;
-        const cleanVal = input.dataset.cleanValue || cleanNumber(input.value);
-        input.value = cleanVal;
+        input.value = input.dataset.cleanValue || cleanNumber(input.value);
     }
 
     function recalcAllFormulas() {
@@ -488,9 +623,7 @@ if ($embedded) {
                 return false;
             }
             const initial = input.dataset.initial ?? '';
-            const current = input.classList.contains('cell-num')
-                ? cleanNumber(input.value)
-                : input.value.trim();
+            const current = input.classList.contains('cell-num') ? cleanNumber(input.value) : input.value.trim();
             return current !== initial;
         });
         document.body.classList.toggle('dirty', dirty);
@@ -528,9 +661,7 @@ if ($embedded) {
                     return;
                 }
                 const initial = input.dataset.initial ?? '';
-                const current = input.classList.contains('cell-num')
-                    ? cleanNumber(input.value)
-                    : input.value.trim();
+                const current = input.classList.contains('cell-num') ? cleanNumber(input.value) : input.value.trim();
                 if (current !== initial) {
                     changes[input.dataset.ref] = current;
                 }
@@ -542,7 +673,30 @@ if ($embedded) {
     reloadBtn.addEventListener('click', () => {
         const url = new URL(window.location.href);
         url.searchParams.delete('status');
+        url.searchParams.delete('imported');
         window.location.href = url.toString();
+    });
+
+    function syncChoiceGroupState(group) {
+        if (!(group instanceof HTMLElement)) return;
+        group.querySelectorAll('.choice-pill').forEach((pill) => {
+            if (!(pill instanceof HTMLElement)) return;
+            const input = pill.querySelector('input[type="radio"]');
+            pill.classList.toggle('active', input instanceof HTMLInputElement && input.checked);
+        });
+    }
+
+    document.querySelectorAll('.choice-group').forEach((group) => {
+        syncChoiceGroupState(group);
+    });
+
+    document.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.type !== 'radio') {
+            return;
+        }
+        const group = target.closest('.choice-group');
+        syncChoiceGroupState(group);
     });
 
     document.querySelectorAll('input.cell-num').forEach((input) => {
@@ -565,15 +719,94 @@ if ($embedded) {
         }, 2400);
     }
 
-    if (initialView === 'import' && importForm instanceof HTMLElement) {
-        highlightTarget(importForm);
-        window.setTimeout(() => importFile?.focus(), 350);
+    function syncViewQuery(panelName) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('view');
+        window.history.replaceState({}, '', url.toString());
     }
 
-    if (initialView === 'export' && exportBtn instanceof HTMLElement) {
-        highlightTarget(exportBtn);
-        window.setTimeout(() => exportBtn.focus(), 350);
+    function focusPanel(panelName) {
+        const panel = panels[panelName] ?? null;
+        if (!(panel instanceof HTMLElement)) {
+            return;
+        }
+        highlightTarget(panel);
+        if (panelName === 'import') {
+            const activeInput = panel.querySelector('.import-input');
+            window.setTimeout(() => activeInput?.focus(), 350);
+            return;
+        }
+        if (panelName === 'export') {
+            window.setTimeout(() => exportBtn?.focus(), 350);
+        }
     }
+
+    function setPanelInteractivity(panel, enabled) {
+        if (!(panel instanceof HTMLElement)) {
+            return;
+        }
+
+        panel.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+        panel.querySelectorAll('input, button, select, textarea').forEach((control) => {
+            if (
+                control instanceof HTMLInputElement ||
+                control instanceof HTMLButtonElement ||
+                control instanceof HTMLSelectElement ||
+                control instanceof HTMLTextAreaElement
+            ) {
+                control.disabled = !enabled;
+            }
+        });
+    }
+
+    function setActivePanel(panelName, options = {}) {
+        const normalizedPanel = supportedPanels.has(panelName) ? panelName : '';
+        const focusRequested = options.focus === true;
+        const updateUrl = options.updateUrl !== false;
+        currentPanel = normalizedPanel;
+
+        if (toolbarPanels instanceof HTMLElement) {
+            toolbarPanels.classList.toggle('has-active-panel', normalizedPanel !== '');
+        }
+
+        Object.entries(panels).forEach(([name, panel]) => {
+            if (!(panel instanceof HTMLElement)) {
+                return;
+            }
+            const isActive = name === normalizedPanel;
+            panel.hidden = !isActive;
+            panel.classList.toggle('is-active', isActive);
+            setPanelInteractivity(panel, isActive);
+        });
+
+        panelLaunchers.forEach((launcher) => {
+            if (!(launcher instanceof HTMLElement)) {
+                return;
+            }
+            const isActive = launcher.dataset.panelTarget === normalizedPanel;
+            launcher.classList.toggle('active', isActive);
+            launcher.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+        });
+
+        if (updateUrl) {
+            syncViewQuery(normalizedPanel);
+        }
+        if (focusRequested && normalizedPanel !== '') {
+            focusPanel(normalizedPanel);
+        }
+    }
+
+    panelLaunchers.forEach((launcher) => {
+        launcher.addEventListener('click', (event) => {
+            const targetPanel = launcher.dataset.panelTarget || '';
+            if (!supportedPanels.has(targetPanel)) {
+                return;
+            }
+            event.preventDefault();
+            const nextPanel = currentPanel === targetPanel ? '' : targetPanel;
+            setActivePanel(nextPanel, { focus: nextPanel !== '' });
+        });
+    });
 
     const isEmbedded = document.body.classList.contains('embedded');
     if (isEmbedded && window.parent !== window) {
@@ -631,6 +864,11 @@ if ($embedded) {
             characterData: true,
         });
     }
+
+    setActivePanel(currentPanel, {
+        focus: currentPanel !== '',
+        updateUrl: false,
+    });
 })();
 </script>
 </body>

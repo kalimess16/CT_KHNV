@@ -615,7 +615,7 @@ function khnv_replace_docx_placeholders(DOMElement $root, array $replacements): 
 {
     $xp = new DOMXPath($root->ownerDocument);
     $xp->registerNamespace('w', KHNV_WORD_NS);
-    foreach ($xp->query('.//w:p', $root) as $pNode) {
+    foreach ($xp->query('descendant-or-self::w:p', $root) as $pNode) {
         if (!$pNode instanceof DOMElement) {
             continue;
         }
@@ -760,6 +760,76 @@ function khnv_save_workbook(string $path, array $changes): void
         }
         throw $e;
     }
+}
+
+function khnv_detect_import_workbook_key(string $filename): string
+{
+    $filename = basename($filename);
+    if (!preg_match('/^CTKHNV_(TW|DP).*\.xlsx$/i', $filename, $m)) {
+        throw new RuntimeException('File import phai bat dau bang CTKHNV_TW hoac CTKHNV_DP va co duoi .xlsx');
+    }
+
+    return strtolower((string) $m[1]);
+}
+
+function khnv_validate_import_filename(string $filename, ?string $expectedKey = null): string
+{
+    $detectedKey = khnv_detect_import_workbook_key($filename);
+    if ($expectedKey !== null && khnv_normalize_workbook_key($expectedKey) !== $detectedKey) {
+        throw new RuntimeException('Ten file upload khong khop voi workbook dang chon.');
+    }
+
+    return $detectedKey;
+}
+
+function khnv_import_uploaded_workbook(array $file, ?string $expectedKey = null): string
+{
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Chua chon file Excel de import hoac file tai len bi loi.');
+    }
+
+    $name = (string) ($file['name'] ?? '');
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+    if ($name === '' || $tmpName === '') {
+        throw new RuntimeException('File import khong hop le.');
+    }
+
+    $targetKey = khnv_validate_import_filename($name, $expectedKey);
+    $targetPath = khnv_get_workbook_path($targetKey);
+
+    if (!is_uploaded_file($tmpName)) {
+        throw new RuntimeException('Khong xac nhan duoc file upload.');
+    }
+
+    khnv_parse_workbook($tmpName);
+
+    $backup = $targetPath . '.bak';
+    if (is_file($targetPath)) {
+        @copy($targetPath, $backup);
+    }
+
+    try {
+        if (file_exists($targetPath)) {
+            @unlink($targetPath);
+        }
+
+        if (!@move_uploaded_file($tmpName, $targetPath)) {
+            if (!@copy($tmpName, $targetPath)) {
+                if (is_file($backup)) {
+                    @copy($backup, $targetPath);
+                }
+                throw new RuntimeException('Khong the luu file import vao thu muc INPUT.');
+            }
+        }
+    } catch (Throwable $e) {
+        if (is_file($backup) && !is_file($targetPath)) {
+            @copy($backup, $targetPath);
+        }
+        throw $e;
+    }
+
+    return $targetKey;
 }
 
 
