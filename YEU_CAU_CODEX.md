@@ -2,13 +2,139 @@
 
 Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan tin ngan trong khung chat.
 
-Quy uoc mac dinh:
+## Quy uoc mac dinh bat buoc
+
 - Khi ban bao "doc file yeu cau", Codex se doc file nay truoc.
-- Sau do, Codex se uu tien doc cac file `.md` lien quan trong du an de lay dung quy tac va bo canh.
+- Sau do, Codex phai uu tien doc cac file `.md` lien quan trong du an de lay dung quy tac va bo canh truoc khi sua code.
+- Neu dung den trang chu hoac giao dien tong, uu tien doc `HOME_INDEX_RULES.md`.
+- Neu dung den luong import/export, DOCX, Excel, hoac module `CHITIEU`, uu tien doc `IMPORT_EXPORT_RULES.md`.
 - Neu co yeu cau moi, ban chi can sua noi dung ben duoi roi nhan: "Hay doc `YEU_CAU_CODEX.md` va lam theo."
-- Sau khi chay xong yeu cau/ tinh nang/ dieu kien moi ma chua co trong cac file .md thi bo sun vao hoac tao moi file .md lien quan de luu tru lai
+- Sau khi chay xong yeu cau/tinh nang/dieu kien moi ma chua co trong cac file `.md` thi bo sung vao hoac tao moi file `.md` lien quan de luu tru lai.
 
-Noi dung yeu cau:
+## Cach ghi yeu cau
 
-<!-- Viet yeu cau cua ban o day -->
+- Moi nhom cong viec viet theo tung thu muc de Codex de theo doi.
+- Moi thu muc nen co day du: `Trang thai`, `Muc do uu tien`, `File can`, `Yeu cau`, `Cach kiem tra`, `Ghi chu them`.
+- Co the them nhieu muc cung mot thu muc neu co nhieu viec rieng.
+
+## Quy uoc gia tri nen dung
+
+- `Trang thai`: TODO
+- `Muc do uu tien`: `cao` | `trung binh` | `thap`
+
+## Mau yeu cau theo tung thu muc
+
+### 1. Thu muc goc `CT_KHNV/`
+
+- Trang thai: chua lam
+- Muc do uu tien: cao
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`
+  - Doc them neu lien quan: `HOME_INDEX_RULES.md`
+  - File sua/tao: `index.php`, `assets/home.css`
+- Yeu cau:
+  - Mo ta ro can sua o trang chu, layout, nut bam, khu vuc nhung module, hoac logic dieu huong.
+- Cach kiem tra:
+  - Vi du: mo `index.php` tren trinh duyet.
+  - Vi du: chay `php -l index.php`.
+  - Vi du: bam thu cac nut `Chi tieu`, `Ke hoach`, `Trang chu`.
+- Ghi chu them:
+  - Ghi ro rang buoc nao khong duoc doi.
+  - Neu can giu nguyen UI/luong cu thi ghi ro tai day.
+
+### 2. Thu muc `assets/`
+
+- Trang thai: chua lam
+- Muc do uu tien: trung binh
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`
+  - Doc them neu lien quan trang chu: `HOME_INDEX_RULES.md`
+  - File sua/tao: `assets/home.css` hoac file asset lien quan
+- Yeu cau:
+  - Mo ta ro can doi CSS, hinh anh, icon, khoang cach, mau sac, responsive...
+- Cach kiem tra:
+  - Tai lai trang va kiem tra tren desktop/mobile.
+  - Kiem tra co vo layout, lech chu, mat nut, tran noi dung hay khong.
+- Ghi chu them:
+  - Neu chi duoc sua giao dien, ghi ro "khong sua logic".
+
+### 3. Thu muc `CHITIEU/`
+
+- Trang thai: chua lam
+- Muc do uu tien: cao
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`
+  - Doc bat buoc neu sua module nay: `IMPORT_EXPORT_RULES.md`
+  - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
+  - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
+- Yeu cau:
+  - Mo ta ro dang sua import, export, doc workbook, render bang, file mau DOCX, bo loc du lieu, hoac giao dien module.
+- Cach kiem tra:
+  - Vi du: chay `php -l CHITIEU\\CODE\\index.php`
+  - Vi du: import file `CTKHNV*.xlsx`
+  - Vi du: bam `Doc lai mau`
+  - Vi du: export DOCX va kiem tra placeholder `{{...}}` da duoc thay het
+  - Vi du: kiem tra so dong/so nhom cot dung theo workbook
+- Ghi chu them:
+  - Neu co file mau dang active thi ghi ro ten file.
+  - Neu co quy tac "khong duoc sua" ve filter, placeholder, bo cuc thi ghi ro tai day.
+
+### 4. Thu muc `kehoach/`
+
+- Trang thai: chua lam
+- Muc do uu tien: thap
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`
+  - Doc them file `.md` lien quan neu sau nay du an bo sung
+  - File sua/tao: ghi ro file cu the trong `kehoach/`
+- Yeu cau:
+  - Mo ta ro module can tao moi, trang tam, UI thong bao, hay logic rieng.
+- Cach kiem tra:
+  - Mo ta cach bam thu, mo duong dan, hoac test nghiep vu can xac nhan.
+- Ghi chu them:
+  - Neu tam thoi chi hien `Dang phat trien cho` thi ghi ro de Codex khong noi nham sang `CHITIEU`.
+
+## Noi dung yeu cau
+
+<!--
+Hay nhap yeu cau that su o ben duoi theo tung thu muc.
+
+Mau ngan:
+
+### Thu muc `CHITIEU/`
+- Trang thai: chua lam
+- Muc do uu tien: cao
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`, `IMPORT_EXPORT_RULES.md`
+  - File sua/tao: `CHITIEU/CODE/export.php`, `CHITIEU/OUTPUT/1.docx`
+- Yeu cau:
+  - Sua export de bo qua dong co gia tri dieu chinh bang 0 va NULL.
+- Cach kiem tra:
+  - Import 1 file mau, export DOCX, kiem tra khong con dong 0/NULL.
+- Ghi chu them:
+  - Giu nguyen bo cuc file mau dang active.
+-->
+### Thu muc `CHITIEU/`
+
+- Trang thai: TODO
+- Muc do uu tien: cao
+- File can:
+  - Doc truoc: `YEU_CAU_CODEX.md`
+  - Doc bat buoc neu sua module nay: `IMPORT_EXPORT_RULES.md`
+  - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
+  - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
+- Yeu cau:
+  + ĐỌC LẠI THƯ MỤC OUTPUT VÀ INPUT, tôi đã bổ sung 4 file: `IMPUT/TW.XLSX` và  `IMPUT/DP.XLSX` và `OUTPUT/Dieu_chinh_chi_tieu.docx` và `OUTPUT/To_trinh.docx`.
+  + nay tôi muốn sửa lại tính năng inport file => 1 layout 1 cái đính kèm tw 1 cái đính kèm dp theo INPUT.
+  + giữ nguyên trạng thái view ở web về excel
+  + trên layout index thì bổ sung thêm chức năng tích view `TW` vs `dp`. mỗi lần tích là load dữ liệu `tw.xlse` và `dp.xlsx`.
+  + Tính năng xuất chỉ tiêu thì => show layout chọn loại xuất theo `## 12. Ghi nhớ lựa chọn mẫu sau này` trong `IMPORT_EXPORT_RULES.md`
+  + Khi tích vào loại xuất và nhán xuất thì sẽ xuất ra theo  `## 12. Ghi nhớ lựa chọn mẫu sau này` trong `IMPORT_EXPORT_RULES.md`
+- Cach kiem tra:
+  + vào chức năng tiêu chi là có thể thao tác được các thông tin trong mục yêu cầu trên
+- Ghi chu them:
+  - Bổ sung thêm css nếu cần.
+  - Neu co file mau dang active thi ghi ro ten file.
+  - khong duoc sua ve filter, placeholder, bo cuc thi ghi ro tai day.
+  - Cập nhật mới lại các file `.md` liên quan.
 

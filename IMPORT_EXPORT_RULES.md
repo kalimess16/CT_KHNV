@@ -6,8 +6,9 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 
 - Người dùng chọn file từ máy tính qua giao diện `index.php`.
 - File import bắt buộc phải là `.xlsx`.
-- Tên file phải bắt đầu bằng `CTKHNV`.
-- Nếu import thành công, file mới sẽ thay thế file nguồn trong `INPUT/test.xlsx`.
+- Tên file phải bắt đầu bằng `CTKHNV_TW` hoặc `CTKHNV_DP`.
+- Nếu file import bắt đầu bằng `CTKHNV_TW` thì khi import thành công sẽ thay thế file nguôn trong `INPUT/TW.xlsx`.
+- Nếu file import bắt đầu bằng `CTKHNV_DP` thì khi import thành công sẽ thay thế file nguôn trong `INPUT/DP.xlsx`.
 - Sau khi import xong phải hiển thị thông báo thành công.
 - Nút `Đọc lại mẫu` phải nạp lại dữ liệu từ file vừa import.
 
@@ -24,7 +25,7 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 - Tiêu đề DOCX phải bám theo workbook.
 - Các placeholder trong template DOCX phải được thay bằng nội dung thật.
 - Không được để sót các chuỗi dạng `{{...}}` trong file xuất ra.
-- `STT` trong DOCX phải là số thứ tự hiển thị hợp lệ, không lấy sai từ dữ liệu công thức.
+
 
 ## 4. Lọc dữ liệu khi xuất
 
@@ -36,21 +37,53 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 
 ## 5. Mẫu DOCX
 
-- Mẫu 1: `OUTPUT/MAU.docx`
-- Mẫu 2: `OUTPUT/MAU_NEW.docx`
-- Mẫu 3: `OUTPUT/1.docx`
-- Mẫu đang active để export hiện tại: `OUTPUT/1.docx`
-- Mẫu 2 phải giữ đủ các thẻ sau để export thay thế:
-  - `{{TIEU_DE_1}}`
+- Mẫu PGD_XA: `OUTPUT/Dieu_chinh_chi_tieu.docx`
+- Mẫu TT_PGD: `OUTPUT/To_trinh.docx`
+- Mẫu PGD_XA phải giữ đủ các thẻ sau để export thay thế:
   - `{{PHONG_GIAO_DICH}}`
-  - `{{GHI_CHU_1}}`
-  - `{{GHI_CHU_2}}`
-  - `{{DON_VI}}`
-  - `{{tenxa}}`
-  - `{{DIEU_CHINH_TANG_TRUONG}}`
-  - `{{CHI_TIEU_KE_HOACH}}`
-- `{{tenxa}}` dùng cho tên xã/phường trong khối bảng của mẫu 2.
+  - `{{ten_xa_tw}}`
+  - `{{ten_xa_dp}}`
+  - `{{stt_tw}}`
+  - `{{stt_dp}}`
+  - `{{chuong_trinh_tw}}`
+  - `{{chuong_trinh_dp}}`
+  - `{{dieu_chinh_tw}}`
+  - `{{dieu_chinh_dp}}`
+  - `{{ctkh_tw}}`
+  - `{{ctkh_dp}}`
+  - `{{don_vi}}`
+- Mẫu TT_PGD phải giữ đủ các thẻ sau để export thay thế:
+  - `{{ten_pgd_tw}}`
+  - `{{ten_pgd_dp}}`
+  - `{{stt_tw}}`
+  - `{{stt_dp}}`
+  - `{{tong_denghi_tw}}`
+  - `{{tong_denghi_dp}}`
+  - `{{denghi_ct_tw}}`
+  - `{{denghi_ct_dp}}`
+  - `{{chuong_trinh_ct_tw}}`
+  - `{{chuong_trinh_ct_dp}}`
+  - `{{ten_xa_tw}}`
+  - `{{ten_xa_dp}}`
+  - `{{don_vi}}`
+  - `{{dagiao_pgd_tw}}`
+  - `{{dagiao_pgd_dp}}`
+  - `{{dagiao_xa_tw}}`
+  - `{{dagiao_xa_dp}}`
+  - `{{denghi_pgd_tw}}`
+  - `{{denghi_pgd_dp}}`
+  - `{{denghi_xa_tw}}`
+  - `{{denghi_xa_dp}}`
+  - `{{ctkh_pgd_tw}}`
+  - `{{ctkh_pgd_dp}}`
+  - `{{ctkh_xa_tw}}`
+  - `{{ctkh_xa_dp}}`
+
+- `{{ten_xa_dp}}`; `{{ten_xa_tw}}` dùng cho tên xã/phường trong khối bảng của mẫu PGD_XA và mẫu TT_PGD.
+- `{{PHONG_GIAO_DICH}}` mẫu PGD_XA bằng với `{{ten_pgd_tw}}`; `{{ten_pgd_dp}}` tại mẫu TT_PGD.
+- `{{don_vi}}` mặc định là "Triệu Đồng"
 - Khi chuyển mẫu, phải giữ nguyên bố cục bảng và kiểu chữ của DOCX gốc.
+- đối với mẫu thì TT_PGD chỉnh sửa lại table cho gọn
 
 ## 6. Nguyên tắc sửa tiếp
 
@@ -71,9 +104,6 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 - Tất cả chuỗi hiển thị ra giao diện hoặc tài liệu phải là UTF-8 chuẩn.
 - Không được để lại chuỗi mojibake; hãy kiểm tra lại toàn bộ tiếng Việt có dấu trước khi chốt.
 - Nếu sửa thông báo hoặc tiêu đề mới, phải kiểm tra lại bằng tiếng Việt có dấu trước khi chốt.
-## 9. Ghi nhớ bố cục
-
-- `PHONG_GIAO_DICH` phải nằm ngay dưới `TIEU_DE_1`, trước các dòng ghi chú và `DON_VI`.
 
 ## 10. Ghi nhớ mới
 
@@ -85,14 +115,15 @@ Tài liệu này ghi lại các ràng buộc đã chốt cho luồng import file
 
 ## 11. Ghi nhớ file mẫu
 
-- File mẫu đang active để export hiện tại là `CHITIEU/OUTPUT/1.docx`.
-- Hai file mẫu còn lại đang có trong thư mục là `CHITIEU/OUTPUT/MAU.docx` và `CHITIEU/OUTPUT/MAU_NEW.docx`.
-- Khi người dùng nói chỉnh file mẫu, ưu tiên kiểm tra 3 file trên trước vì đây là các file mẫu cần giữ lại.
+- File mẫu đang active để export hiện tại là  `OUTPUT/Dieu_chinh_chi_tieu.docx` và `OUTPUT/To_trinh.docx`
+
 
 ## 12. Ghi nhớ lựa chọn mẫu sau này
 
 - Dự kiến bổ sung 3 lựa chọn xuất:
-- Mẫu 1: `DP`
-- Mẫu 2: `TW`
-- Mẫu 3: `ALL`
-- Khi người dùng yêu cầu sau này, hiểu đây là yêu cầu chia export theo 3 chế độ chọn mẫu ở trên.
+- Loại 1: `TT` : xuất Mẫu PGD_XA: `OUTPUT/Dieu_chinh_chi_tieu.docx`.
+- Loại 2: `DMDN` : xuất Mẫu TT_PGD: `OUTPUT/To_trinh.docx`.
+- Loại 3: `ALL` : xuất 1 lần 2 mẫu trên
+- Khi người dùng yêu cầu sau này, hiểu đây là yêu cầu chia export theo 3 chế độ chọn loại trên.
+
+
