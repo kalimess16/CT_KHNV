@@ -96,23 +96,20 @@ Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan t
 
 ## Noi dung yeu cau
 
-### 1. Thu muc `CHITIEU/`
+### Thu muc `CHITIEU/`
 
 - Trang thai: TODO
-- Muc do uu tien: 
+- Muc do uu tien: cao
 - File can:
   - Doc truoc: `YEU_CAU_CODEX.md`
   - Doc bat buoc neu sua module nay: `IMPORT_EXPORT_RULES.md`
   - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
   - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
 - Yeu cau:
-  - trên thu mục `output/dieu_chinh_chi_tieu.docs` có thẻ `{{phong_giao_dich}}` hiện không lấy được số liệu
-  - thẻ `{{phong_giao_dich}}` thì sẽ lấy trên PGD trong 2 file excel, nó tương tự như thẻ - `{{ten_pgd_tw}}` và `{{ten_pgd_dp}}`.
-  - tôi muốn `output/dieu_chinh_chi_tieu.docs` là lấy số liệu của 1 phòng cho vào mẫu, sau khi xong 1 phòng Giao dịch thì sẽ tiếp tục làm mẫu PGD tiếp theo
-- Cach kiem tra: ctr + F5 , vào chỉ tiêu / xuất báo cáo / tt là thấy kết quả
+  - xem ảnh và xử ký ô ĐỎ, Chổ này hàm sum nếu Dương thì có số, mà khi âm lại để bằng 0, tôi muốn vẫn thế hiện tổng âm
+   Cach kiem tra:
+  - vào xuất docs tải về xem
+  - nhấn xóa thì số liệu mất hết.
 - Ghi chu them:
-  - Bổ sung thêm css nếu cần.
-  - File mau dang active: `CHITIEU/OUTPUT/Dieu_chinh_chi_tieu.docx`, `CHITIEU/OUTPUT/To_trinh.docx`.
-  - khong duoc sua ve filter, placeholder, bo cuc thi ghi ro tai day.
-  - Cập nhật mới lại các file `.md` liên quan.
-  - Da doi giao dien thanh 2 nut gon `Import Excel` va `Xuat DOCX`; chi khi bam moi hien layout con de thao tac.
+  - Neu co file mau dang active thi ghi ro ten file.
+  - Neu co quy tac "khong duoc sua" ve filter, placeholder, bo cuc thi ghi ro tai day.

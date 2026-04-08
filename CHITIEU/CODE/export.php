@@ -339,6 +339,39 @@ function khnv_docx_append_clone(DOMElement $parent, DOMElement $template): DOMEl
     return $clone;
 }
 
+function khnv_docx_compact_row(DOMElement $row): void
+{
+    $xp = new DOMXPath($row->ownerDocument);
+    $xp->registerNamespace('w', KHNV_WORD_NS);
+
+    foreach ($xp->query('./w:trPr/w:trHeight', $row) as $heightNode) {
+        if ($heightNode instanceof DOMNode && $heightNode->parentNode instanceof DOMNode) {
+            $heightNode->parentNode->removeChild($heightNode);
+        }
+    }
+
+    foreach ($xp->query('.//w:p', $row) as $paragraph) {
+        if (!$paragraph instanceof DOMElement) {
+            continue;
+        }
+
+        $pPr = $xp->query('./w:pPr', $paragraph)->item(0);
+        if (!$pPr instanceof DOMElement) {
+            $pPr = $paragraph->ownerDocument->createElementNS(KHNV_WORD_NS, 'w:pPr');
+            $paragraph->insertBefore($pPr, $paragraph->firstChild);
+        }
+
+        $spacing = $xp->query('./w:spacing', $pPr)->item(0);
+        if (!$spacing instanceof DOMElement) {
+            $spacing = $paragraph->ownerDocument->createElementNS(KHNV_WORD_NS, 'w:spacing');
+            $pPr->appendChild($spacing);
+        }
+
+        $spacing->setAttributeNS(KHNV_WORD_NS, 'w:before', '0');
+        $spacing->setAttributeNS(KHNV_WORD_NS, 'w:after', '0');
+    }
+}
+
 function khnv_append_pgd_xa_source_rows(
     DOMElement $table,
     DOMElement $sectionTemplate,
@@ -353,6 +386,7 @@ function khnv_append_pgd_xa_source_rows(
     khnv_docx_append_clone($table, $sectionTemplate);
     foreach (($sourceBlock['communes'] ?? []) as $commune) {
         $communeRow = khnv_docx_append_clone($table, $communeTemplate);
+        khnv_docx_compact_row($communeRow);
         khnv_docx_set_row_cells($communeRow, [
             0 => '',
             1 => (string) ($commune['name'] ?? ''),
@@ -363,6 +397,7 @@ function khnv_append_pgd_xa_source_rows(
         $displayIndex = 1;
         foreach (($commune['loans'] ?? []) as $loan) {
             $loanRow = khnv_docx_append_clone($table, $loanTemplate);
+            khnv_docx_compact_row($loanRow);
             khnv_docx_set_row_cells($loanRow, [
                 0 => (string) $displayIndex,
                 1 => (string) ($loan['label'] ?? ''),
@@ -420,6 +455,7 @@ function khnv_append_tt_pgd_source_rows(
     }
 
     $totalRow = khnv_docx_append_clone($table, $totalTemplate);
+    khnv_docx_compact_row($totalRow);
     khnv_docx_set_row_cells($totalRow, [
         2 => '',
         3 => khnv_format_nullable_report_number($sourceSummary['overall_adjust_total'] ?? null),
@@ -429,6 +465,7 @@ function khnv_append_tt_pgd_source_rows(
     $programIndex = 1;
     foreach (($sourceSummary['programs'] ?? []) as $program) {
         $programRow = khnv_docx_append_clone($table, $programTemplate);
+        khnv_docx_compact_row($programRow);
         khnv_docx_set_row_cells($programRow, [
             0 => khnv_to_roman($programIndex),
             1 => (string) ($program['label'] ?? ''),
@@ -440,6 +477,7 @@ function khnv_append_tt_pgd_source_rows(
         $pgdIndex = 1;
         foreach (($program['pgds'] ?? []) as $pgd) {
             $pgdRow = khnv_docx_append_clone($table, $pgdTemplate);
+            khnv_docx_compact_row($pgdRow);
             khnv_docx_set_row_cells($pgdRow, [
                 0 => (string) $pgdIndex,
                 1 => (string) ($pgd['pgd'] ?? ''),
@@ -450,6 +488,7 @@ function khnv_append_tt_pgd_source_rows(
 
             foreach (($pgd['communes'] ?? []) as $commune) {
                 $communeRow = khnv_docx_append_clone($table, $communeTemplate);
+                khnv_docx_compact_row($communeRow);
                 khnv_docx_set_row_cells($communeRow, [
                     0 => '',
                     1 => (string) ($commune['name'] ?? ''),
@@ -645,11 +684,13 @@ function khnv_export_pgd_xa_docx(array $context, string $templatePath, ?string $
             $body->insertBefore(khnv_create_page_break_paragraph($docXml), $sectPr);
         }
 
+        $pgdHeading = khnv_safe_upper(khnv_normalize_cell_text((string) ($pgdBlock['pgd'] ?? '')));
+
         foreach ($titleParagraphs as $paragraphTemplate) {
             $paragraphNode = $paragraphTemplate->cloneNode(true);
             khnv_replace_docx_placeholders($paragraphNode, [
-                '{{phong_giao_dich}}' => (string) ($pgdBlock['pgd'] ?? ''),
-                '{{PHONG_GIAO_DICH}}' => (string) ($pgdBlock['pgd'] ?? ''),
+                '{{phong_giao_dich}}' => $pgdHeading,
+                '{{PHONG_GIAO_DICH}}' => $pgdHeading,
             ]);
             $body->insertBefore($paragraphNode, $sectPr);
         }

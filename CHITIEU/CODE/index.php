@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . '/access_control.php';
 require __DIR__ . '/data.php';
-khnv_redirect_localhost_to_ip();
+
+khnv_access_redirect_localhost_to_ip();
+khnv_access_enforce_client_ip();
 
 $publicPrefix = defined('KHNV_PUBLIC_PREFIX') ? KHNV_PUBLIC_PREFIX : '';
 $selfBaseUrl = defined('KHNV_SELF_URL') ? KHNV_SELF_URL : 'index.php';
@@ -96,6 +99,15 @@ try {
             exit;
         }
 
+        if ($action === 'clear') {
+            khnv_clear_workbook($currentWorkbookPath);
+            header('Location: ' . khnv_url_with_query($selfBaseUrl, array_merge($baseParams, [
+                'dataset' => $dataset,
+                'status' => 'cleared',
+            ])));
+            exit;
+        }
+
         $payload = khnv_collect_payload();
 
         if ($action === 'save') {
@@ -172,6 +184,8 @@ if ($flash === 'saved') {
 } elseif ($flash === 'imported') {
     $importedFile = basename(khnv_get_workbook_path($importedKey));
     $statusText = 'Đã import file local và thay thế ' . $importedFile . '.';
+} elseif ($flash === 'cleared') {
+    $statusText = 'Đã xóa toàn bộ số liệu trong ' . $sourceFile . '.';
 }
 ?>
 <!DOCTYPE html>
@@ -256,6 +270,7 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
                 </div>
 
                 <div class="toolbar-actions">
+                    <button type="submit" form="sheetForm" name="action" value="clear" class="btn btn-danger" id="clearBtn" data-workbook-label="<?= khnv_h($currentWorkbookLabel) ?>">Xóa số liệu</button>
                     <button type="button" class="btn btn-ghost" id="reloadBtn">Đọc lại mẫu</button>
                     <button type="submit" form="sheetForm" name="action" value="save" class="btn btn-primary">Lưu cập nhật</button>
                 </div>
@@ -342,6 +357,10 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
     <?php elseif ($flash === 'imported'): ?>
         <section class="notice notice-success">
             Import thành công. File local đã thay thế <strong><?= khnv_h(basename(khnv_get_workbook_path($importedKey))) ?></strong> và bạn có thể bấm <strong>Đọc lại mẫu</strong> để nạp dữ liệu mới.
+        </section>
+    <?php elseif ($flash === 'cleared'): ?>
+        <section class="notice notice-success">
+            Đã xóa số liệu của workbook <strong><?= khnv_h($currentWorkbookLabel) ?></strong>. Các ô số liệu được đưa về trạng thái rỗng.
         </section>
     <?php endif; ?>
 
@@ -474,6 +493,7 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
     const form = document.getElementById('sheetForm');
     const payload = document.getElementById('payload');
     const reloadBtn = document.getElementById('reloadBtn');
+    const clearBtn = document.getElementById('clearBtn');
     const toolbarPanels = document.getElementById('toolbarPanels');
     const panelLaunchers = Array.from(document.querySelectorAll('[data-panel-target]'));
     const importPanel = document.getElementById('importPanel');
@@ -548,33 +568,95 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
         return Number.isFinite(num) ? num : 0;
     }
 
-    function evaluateFormula(formula) {
-        const raw = String(formula || '').replace(/\s+/g, '').replace(/^=/, '');
-        if (!raw) return null;
+    function hasValueByRef(ref) {
+        const input = getInputByRef(ref);
+        if (!(input instanceof HTMLInputElement)) {
+            return false;
+        }
 
-        const sumMatch = raw.match(/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i);
+        const raw = input.classList.contains('cell-num')
+            ? (input.dataset.cleanValue || cleanNumber(input.value))
+            : input.value.trim();
+
+        return String(raw).trim() !== '';
+    }
+
+    function getFormulaTermValue(term) {
+        const normalized = String(term || '').trim().toUpperCase();
+        if (!normalized) return null;
+
+        const sumMatch = normalized.match(/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i);
         if (sumMatch) {
             const start = parseRef(sumMatch[1]);
             const end = parseRef(sumMatch[2]);
             if (!start || !end) return null;
+
             let total = 0;
             const startRow = Math.min(start.row, end.row);
             const endRow = Math.max(start.row, end.row);
             const startCol = Math.min(colToIndex(start.col), colToIndex(end.col));
             const endCol = Math.max(colToIndex(start.col), colToIndex(end.col));
+            let hasAnyValue = false;
+
             for (let row = startRow; row <= endRow; row += 1) {
                 for (let colIndex = startCol; colIndex <= endCol; colIndex += 1) {
-                    total += getNumericValueByRef(`${indexToCol(colIndex)}${row}`);
+                    const ref = `${indexToCol(colIndex)}${row}`;
+                    hasAnyValue = hasAnyValue || hasValueByRef(ref);
+                    total += getNumericValueByRef(ref);
                 }
             }
-            return total;
+
+            return { value: total, hasValue: hasAnyValue };
         }
 
-        const binaryMatch = raw.match(/^([A-Z]+\d+)([+\-])([A-Z]+\d+)$/i);
-        if (binaryMatch) {
-            const left = getNumericValueByRef(binaryMatch[1].toUpperCase());
-            const right = getNumericValueByRef(binaryMatch[3].toUpperCase());
-            return binaryMatch[2] === '-' ? (left - right) : (left + right);
+        if (/^[A-Z]+\d+$/i.test(normalized)) {
+            return {
+                value: getNumericValueByRef(normalized),
+                hasValue: hasValueByRef(normalized),
+            };
+        }
+
+        if (/^#[A-Z0-9\/!?\-]+$/i.test(normalized)) {
+            return { value: 0, hasValue: false };
+        }
+
+        if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+            return { value: Number(normalized), hasValue: true };
+        }
+
+        return null;
+    }
+
+    function evaluateFormula(formula) {
+        const raw = String(formula || '').replace(/\s+/g, '').replace(/^=/, '');
+        if (!raw) return null;
+
+        const tokenPattern = /([+\-]?)(SUM\([A-Z]+\d+:[A-Z]+\d+\)|[A-Z]+\d+|#[A-Z0-9\/!?\-]+|\d+(?:\.\d+)?)/ig;
+        let total = 0;
+        let hasAnyValue = false;
+        let consumed = '';
+        let match;
+
+        while ((match = tokenPattern.exec(raw)) !== null) {
+            if (match.index !== consumed.length) {
+                return null;
+            }
+
+            consumed += match[0];
+            const term = getFormulaTermValue(match[2]);
+            if (!term) {
+                return null;
+            }
+
+            if (term.hasValue) {
+                hasAnyValue = true;
+            }
+
+            total += (match[1] === '-' ? -1 : 1) * term.value;
+        }
+
+        if (consumed === raw && consumed !== '') {
+            return hasAnyValue ? total : '';
         }
 
         return null;
@@ -610,9 +692,9 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
             if (!(input instanceof HTMLInputElement)) return;
             const computed = evaluateFormula(formula);
             if (computed === null) return;
-            const cleanVal = formatNumber(computed);
+            const cleanVal = computed === '' ? '' : formatNumber(computed);
             input.dataset.cleanValue = cleanVal;
-            input.dataset.display = formatVND(cleanVal);
+            input.dataset.display = cleanVal === '' ? '' : formatVND(cleanVal);
             input.value = input.dataset.display || cleanVal;
         });
     }
@@ -654,6 +736,17 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
     form.addEventListener('submit', (event) => {
         const submitter = event.submitter;
         const action = submitter?.value || 'save';
+        if (action === 'clear') {
+            payload.value = '';
+            const workbookLabel = clearBtn instanceof HTMLButtonElement
+                ? (clearBtn.getAttribute('data-workbook-label') || '')
+                : '';
+            const confirmed = window.confirm(`Xóa toàn bộ số liệu của workbook ${workbookLabel || 'đang xem'}?`);
+            if (!confirmed) {
+                event.preventDefault();
+            }
+            return;
+        }
         if (action === 'export' || action === 'save') {
             const changes = {};
             form.querySelectorAll('[data-ref]').forEach((input) => {

@@ -259,6 +259,21 @@ function khnv_formula_ref_value(array $rows, string $ref): float
     return khnv_row_numeric_value($rows[$rowNum]['cells'], $col);
 }
 
+function khnv_formula_ref_has_value(array $rows, string $ref): bool
+{
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $ref, $m)) {
+        return false;
+    }
+
+    $rowNum = (int) $m[2];
+    $col = $m[1];
+    if (!isset($rows[$rowNum]['cells'][$col])) {
+        return false;
+    }
+
+    return trim((string) ($rows[$rowNum]['cells'][$col]['value'] ?? '')) !== '';
+}
+
 function khnv_formula_sum_range(array $rows, string $startRef, string $endRef): float
 {
     if (!preg_match('/^([A-Z]+)(\d+)$/', $startRef, $startMatch)) {
@@ -290,6 +305,70 @@ function khnv_formula_sum_range(array $rows, string $startRef, string $endRef): 
     return $sum;
 }
 
+function khnv_formula_range_has_value(array $rows, string $startRef, string $endRef): bool
+{
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $startRef, $startMatch)) {
+        return false;
+    }
+    if (!preg_match('/^([A-Z]+)(\d+)$/', $endRef, $endMatch)) {
+        return false;
+    }
+
+    $startCol = khnv_col_to_index($startMatch[1]);
+    $endCol = khnv_col_to_index($endMatch[1]);
+    $startRow = (int) $startMatch[2];
+    $endRow = (int) $endMatch[2];
+
+    if ($startCol > $endCol) {
+        [$startCol, $endCol] = [$endCol, $startCol];
+    }
+    if ($startRow > $endRow) {
+        [$startRow, $endRow] = [$endRow, $startRow];
+    }
+
+    for ($row = $startRow; $row <= $endRow; $row++) {
+        for ($colIndex = $startCol; $colIndex <= $endCol; $colIndex++) {
+            if (khnv_formula_ref_has_value($rows, khnv_index_to_col($colIndex) . $row)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function khnv_formula_term_value(array $rows, string $term, bool &$hasValue = false): ?float
+{
+    $normalized = strtoupper(trim($term));
+    if ($normalized === '') {
+        $hasValue = false;
+        return null;
+    }
+
+    if (preg_match('/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i', $normalized, $m)) {
+        $hasValue = khnv_formula_range_has_value($rows, strtoupper($m[1]), strtoupper($m[2]));
+        return khnv_formula_sum_range($rows, strtoupper($m[1]), strtoupper($m[2]));
+    }
+
+    if (preg_match('/^[A-Z]+\d+$/i', $normalized)) {
+        $hasValue = khnv_formula_ref_has_value($rows, $normalized);
+        return khnv_formula_ref_value($rows, $normalized);
+    }
+
+    if (preg_match('/^#[A-Z0-9\/!?\-]+$/i', $normalized)) {
+        $hasValue = false;
+        return 0.0;
+    }
+
+    if (is_numeric($normalized)) {
+        $hasValue = true;
+        $number = (float) $normalized;
+        return is_finite($number) ? $number : null;
+    }
+
+    return null;
+}
+
 function khnv_evaluate_formula(string $formula, array $rows): ?string
 {
     $formula = preg_replace('/\s+/u', '', trim($formula)) ?? trim($formula);
@@ -298,15 +377,31 @@ function khnv_evaluate_formula(string $formula, array $rows): ?string
         return null;
     }
 
-    if (preg_match('/^SUM\(([A-Z]+\d+):([A-Z]+\d+)\)$/i', $formula, $m)) {
-        return khnv_clean_number_string(khnv_formula_sum_range($rows, strtoupper($m[1]), strtoupper($m[2])));
-    }
+    $tokenPattern = '/([+\-]?)(SUM\([A-Z]+\d+:[A-Z]+\d+\)|[A-Z]+\d+|#[A-Z0-9\/!?\-]+|\d+(?:\.\d+)?)/i';
+    if (preg_match_all($tokenPattern, $formula, $matches, PREG_SET_ORDER) > 0) {
+        $consumed = '';
+        $total = 0.0;
+        $hasAnyValue = false;
 
-    if (preg_match('/^([A-Z]+\d+)([+\-])([A-Z]+\d+)$/i', $formula, $m)) {
-        $left = khnv_formula_ref_value($rows, strtoupper($m[1]));
-        $right = khnv_formula_ref_value($rows, strtoupper($m[3]));
-        $result = $m[2] === '-' ? ($left - $right) : ($left + $right);
-        return khnv_clean_number_string($result);
+        foreach ($matches as $match) {
+            $consumed .= $match[0];
+            $termHasValue = false;
+            $termValue = khnv_formula_term_value($rows, (string) ($match[2] ?? ''), $termHasValue);
+            if ($termValue === null) {
+                return null;
+            }
+
+            if ($termHasValue) {
+                $hasAnyValue = true;
+            }
+
+            $sign = (($match[1] ?? '') === '-') ? -1.0 : 1.0;
+            $total += $sign * $termValue;
+        }
+
+        if ($consumed === $formula) {
+            return $hasAnyValue ? khnv_clean_number_string($total) : '';
+        }
     }
 
     return null;
@@ -524,6 +619,37 @@ function khnv_apply_changes(array &$state, array $changes): void
     }
 }
 
+function khnv_clear_workbook_data(array &$state): void
+{
+    $dataStartRow = khnv_detect_data_start_row($state['rows'] ?? []);
+
+    foreach ($state['rows'] as $rowNum => &$rowData) {
+        if ($rowNum < $dataStartRow) {
+            continue;
+        }
+
+        if (!isset($rowData['cells']) || !is_array($rowData['cells'])) {
+            continue;
+        }
+
+        foreach ($rowData['cells'] as $col => &$cell) {
+            if (in_array($col, ['A', 'B', 'C'], true)) {
+                continue;
+            }
+            $cell['value'] = '';
+        }
+        unset($cell);
+    }
+    unset($rowData);
+
+    khnv_recalculate_rows($state['rows']);
+    foreach ($state['rows'] as $rowData) {
+        foreach (($rowData['cells'] ?? []) as $cell) {
+            $state['cellsByRef'][$cell['ref']]['value'] = $cell['value'];
+        }
+    }
+}
+
 function khnv_build_cell_map_from_dom(DOMDocument $xml): array
 {
     $xp = new DOMXPath($xml);
@@ -733,10 +859,8 @@ function khnv_update_sheet_xml(string $sourcePath, array $state): string
     return $tempPath;
 }
 
-function khnv_save_workbook(string $path, array $changes): void
+function khnv_write_workbook_state(string $path, array $state): void
 {
-    $state = khnv_parse_workbook($path);
-    khnv_apply_changes($state, $changes);
     $tempPath = khnv_update_sheet_xml($path, $state);
 
     $backup = $path . '.bak';
@@ -760,6 +884,20 @@ function khnv_save_workbook(string $path, array $changes): void
         }
         throw $e;
     }
+}
+
+function khnv_save_workbook(string $path, array $changes): void
+{
+    $state = khnv_parse_workbook($path);
+    khnv_apply_changes($state, $changes);
+    khnv_write_workbook_state($path, $state);
+}
+
+function khnv_clear_workbook(string $path): void
+{
+    $state = khnv_parse_workbook($path);
+    khnv_clear_workbook_data($state);
+    khnv_write_workbook_state($path, $state);
 }
 
 function khnv_detect_import_workbook_key(string $filename): string

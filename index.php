@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+require __DIR__ . '/access_control.php';
+
+khnv_access_redirect_localhost_to_ip();
+khnv_access_enforce_client_ip();
+
 function home_h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
