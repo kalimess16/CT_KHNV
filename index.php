@@ -61,7 +61,7 @@ $menuItems = [
 
             <div class="head-copy">
                 <h1>PHỤC VỤ KẾ HOẠCH NGHIỆP VỤ</h1>
-                <p>Trang này hổ trợ công tác cá nhân trong phòng KHNV.</p>
+                <p>Trang này hổ trợ công tác cá nhân cho phòng KHNV.</p>
             </div>
         </button>
 

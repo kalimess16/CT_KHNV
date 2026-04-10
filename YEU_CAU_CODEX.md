@@ -106,10 +106,9 @@ Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan t
   - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
   - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
 - Yeu cau:
-  - xem ảnh và xử ký ô ĐỎ, Chổ này hàm sum nếu Dương thì có số, mà khi âm lại để bằng 0, tôi muốn vẫn thế hiện tổng âm
+  - trên index khi tôi thay đổi cột ` điều chỉnh tăng trưởng ` thì cột ` chỉ tiêu kế hoạch năm 2026` = ` kế hoạch năm 2026 đã giao` + ` điều chỉnh tăng trưởng `.
    Cach kiem tra:
   - vào xuất docs tải về xem
-  - nhấn xóa thì số liệu mất hết.
 - Ghi chu them:
   - Neu co file mau dang active thi ghi ro ten file.
   - Neu co quy tac "khong duoc sua" ve filter, placeholder, bo cuc thi ghi ro tai day.

@@ -82,12 +82,13 @@ function khnv_parse_workbook(string $path): array
         }
     }
 
+    khnv_apply_derived_target_formulas($rows, $cellsByRef, $formulaRefs);
     $zip->close();
 
     khnv_recalculate_rows($rows);
     foreach ($rows as $rowNum => $rowData) {
         foreach (($rowData['cells'] ?? []) as $col => $cell) {
-            $cellsByRef[$cell['ref']]['value'] = $cell['value'];
+            $cellsByRef[$cell['ref']] = $cell;
         }
     }
 
@@ -127,6 +128,61 @@ function khnv_parse_merge_ranges(DOMXPath $xp): array
     }
 
     return $ranges;
+}
+
+function khnv_apply_derived_target_formulas(array &$rows, array &$cellsByRef, array &$formulaRefs): void
+{
+    $loanGroups = khnv_detect_loan_groups($rows);
+    if ($loanGroups === []) {
+        return;
+    }
+
+    $dataStartRow = khnv_detect_data_start_row($rows);
+    foreach ($rows as $rowNum => &$row) {
+        if ($rowNum < $dataStartRow || !isset($row['cells']['B'], $row['cells']['C'])) {
+            continue;
+        }
+
+        $pgd = trim((string) ($row['cells']['B']['value'] ?? ''));
+        $commune = trim((string) ($row['cells']['C']['value'] ?? ''));
+        if ($pgd === '' || $commune === '') {
+            continue;
+        }
+
+        foreach ($loanGroups as $loan) {
+            $startCol = (string) ($loan['start'] ?? '');
+            $adjustCol = (string) ($loan['adjust'] ?? '');
+            $targetCol = (string) ($loan['target'] ?? '');
+            if (
+                $startCol === ''
+                || $adjustCol === ''
+                || $targetCol === ''
+                || !isset($row['cells'][$startCol], $row['cells'][$adjustCol], $row['cells'][$targetCol])
+            ) {
+                continue;
+            }
+
+            $cell = $row['cells'][$targetCol];
+            if (!empty($cell['has_formula'])) {
+                continue;
+            }
+
+            $ref = (string) ($cell['ref'] ?? '');
+            if ($ref === '') {
+                continue;
+            }
+
+            $cell['formula'] = $startCol . $rowNum . '+' . $adjustCol . $rowNum;
+            $cell['has_formula'] = true;
+            $row['cells'][$targetCol] = $cell;
+            $cellsByRef[$ref] = $cell;
+
+            if (!in_array($ref, $formulaRefs, true)) {
+                $formulaRefs[] = $ref;
+            }
+        }
+    }
+    unset($row);
 }
 
 function khnv_find_merge_range(array $mergeRanges, int $rowNum, string $col): ?array
@@ -337,6 +393,193 @@ function khnv_formula_range_has_value(array $rows, string $startRef, string $end
     return false;
 }
 
+function khnv_formula_strip_outer_parentheses(string $expression): string
+{
+    $expression = trim($expression);
+    while ($expression !== '' && $expression[0] === '(' && substr($expression, -1) === ')') {
+        $depth = 0;
+        $isWrapper = true;
+        $length = strlen($expression);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth < 0) {
+                    $isWrapper = false;
+                    break;
+                }
+                if ($depth === 0 && $i < ($length - 1)) {
+                    $isWrapper = false;
+                    break;
+                }
+            }
+        }
+        if (!$isWrapper || $depth !== 0) {
+            break;
+        }
+        $expression = trim(substr($expression, 1, -1));
+    }
+
+    return $expression;
+}
+
+function khnv_formula_split_top_level_args(string $expression): ?array
+{
+    $args = [];
+    $current = '';
+    $depth = 0;
+    $length = strlen($expression);
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $expression[$i];
+        if ($char === '(') {
+            $depth++;
+            $current .= $char;
+            continue;
+        }
+        if ($char === ')') {
+            $depth--;
+            if ($depth < 0) {
+                return null;
+            }
+            $current .= $char;
+            continue;
+        }
+        if (($char === ',' || $char === ';') && $depth === 0) {
+            $args[] = trim($current);
+            $current = '';
+            continue;
+        }
+        $current .= $char;
+    }
+
+    if ($depth !== 0) {
+        return null;
+    }
+
+    $args[] = trim($current);
+    return $args;
+}
+
+function khnv_formula_parse_function_args(string $expression, string $name): ?array
+{
+    $expression = khnv_formula_strip_outer_parentheses($expression);
+    $prefix = strtoupper($name) . '(';
+    if (strtoupper(substr($expression, 0, strlen($prefix))) !== $prefix || substr($expression, -1) !== ')') {
+        return null;
+    }
+
+    $inner = substr($expression, strlen($prefix), -1);
+    return khnv_formula_split_top_level_args($inner);
+}
+
+function khnv_formula_is_zero_literal(string $expression): bool
+{
+    $expression = khnv_formula_strip_outer_parentheses(trim($expression));
+    if ($expression === '' || !is_numeric($expression)) {
+        return false;
+    }
+
+    return abs((float) $expression) < 0.00000001;
+}
+
+function khnv_formula_expression_key(string $expression): string
+{
+    $expression = preg_replace('/\s+/u', '', trim($expression)) ?? trim($expression);
+    $expression = khnv_formula_strip_outer_parentheses($expression);
+    return strtoupper(ltrim($expression, '+'));
+}
+
+function khnv_formula_extract_if_passthrough_expression(string $condition, string $whenTrue, string $whenFalse): ?string
+{
+    $condition = khnv_formula_strip_outer_parentheses($condition);
+    if (!preg_match('/^(.+?)(>=|<=|<>|=|>|<)(.+)$/', $condition, $matches)) {
+        return null;
+    }
+
+    $left = khnv_formula_strip_outer_parentheses((string) ($matches[1] ?? ''));
+    $operator = (string) ($matches[2] ?? '');
+    $right = khnv_formula_strip_outer_parentheses((string) ($matches[3] ?? ''));
+
+    $comparableOperators = ['>', '>=', '<', '<='];
+    if (!in_array($operator, $comparableOperators, true)) {
+        return null;
+    }
+
+    $trueKey = khnv_formula_expression_key($whenTrue);
+    $falseKey = khnv_formula_expression_key($whenFalse);
+    $leftKey = khnv_formula_expression_key($left);
+    $rightKey = khnv_formula_expression_key($right);
+    $leftIsZero = khnv_formula_is_zero_literal($left);
+    $rightIsZero = khnv_formula_is_zero_literal($right);
+
+    if (khnv_formula_is_zero_literal($whenFalse)) {
+        if ($trueKey !== '' && $trueKey === $leftKey && $rightIsZero && in_array($operator, ['>', '>='], true)) {
+            return $whenTrue;
+        }
+        if ($trueKey !== '' && $trueKey === $rightKey && $leftIsZero && in_array($operator, ['<', '<='], true)) {
+            return $whenTrue;
+        }
+    }
+
+    if (khnv_formula_is_zero_literal($whenTrue)) {
+        if ($falseKey !== '' && $falseKey === $leftKey && $rightIsZero && in_array($operator, ['<', '<='], true)) {
+            return $whenFalse;
+        }
+        if ($falseKey !== '' && $falseKey === $rightKey && $leftIsZero && in_array($operator, ['>', '>='], true)) {
+            return $whenFalse;
+        }
+    }
+
+    return null;
+}
+
+function khnv_formula_extract_passthrough_expression(string $formula): ?string
+{
+    $formula = khnv_formula_strip_outer_parentheses($formula);
+
+    $maxArgs = khnv_formula_parse_function_args($formula, 'MAX');
+    if ($maxArgs !== null && count($maxArgs) === 2) {
+        if (khnv_formula_is_zero_literal($maxArgs[0] ?? '')) {
+            return (string) ($maxArgs[1] ?? '');
+        }
+        if (khnv_formula_is_zero_literal($maxArgs[1] ?? '')) {
+            return (string) ($maxArgs[0] ?? '');
+        }
+    }
+
+    $ifArgs = khnv_formula_parse_function_args($formula, 'IF');
+    if ($ifArgs !== null && count($ifArgs) === 3) {
+        return khnv_formula_extract_if_passthrough_expression(
+            (string) ($ifArgs[0] ?? ''),
+            (string) ($ifArgs[1] ?? ''),
+            (string) ($ifArgs[2] ?? '')
+        );
+    }
+
+    return null;
+}
+
+function khnv_formula_unwrap_passthrough_expression(string $formula): string
+{
+    $current = khnv_formula_strip_outer_parentheses($formula);
+    while (true) {
+        $next = khnv_formula_extract_passthrough_expression($current);
+        if ($next === null) {
+            return $current;
+        }
+
+        $next = khnv_formula_strip_outer_parentheses($next);
+        if (khnv_formula_expression_key($next) === khnv_formula_expression_key($current)) {
+            return $current;
+        }
+
+        $current = $next;
+    }
+}
+
 function khnv_formula_term_value(array $rows, string $term, bool &$hasValue = false): ?float
 {
     $normalized = strtoupper(trim($term));
@@ -373,6 +616,7 @@ function khnv_evaluate_formula(string $formula, array $rows): ?string
 {
     $formula = preg_replace('/\s+/u', '', trim($formula)) ?? trim($formula);
     $formula = ltrim($formula, '=');
+    $formula = khnv_formula_unwrap_passthrough_expression($formula);
     if ($formula === '') {
         return null;
     }
@@ -614,7 +858,7 @@ function khnv_apply_changes(array &$state, array $changes): void
     khnv_recalculate_rows($state['rows']);
     foreach ($state['rows'] as $rowNum => $rowData) {
         foreach (($rowData['cells'] ?? []) as $col => $cell) {
-            $state['cellsByRef'][$cell['ref']]['value'] = $cell['value'];
+            $state['cellsByRef'][$cell['ref']] = $cell;
         }
     }
 }
@@ -645,7 +889,7 @@ function khnv_clear_workbook_data(array &$state): void
     khnv_recalculate_rows($state['rows']);
     foreach ($state['rows'] as $rowData) {
         foreach (($rowData['cells'] ?? []) as $cell) {
-            $state['cellsByRef'][$cell['ref']]['value'] = $cell['value'];
+            $state['cellsByRef'][$cell['ref']] = $cell;
         }
     }
 }

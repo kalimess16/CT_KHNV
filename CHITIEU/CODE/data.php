@@ -17,14 +17,14 @@ function khnv_workbook_configs(): array
         'tw' => [
             'key' => 'tw',
             'label' => 'TW',
-            'title' => 'Nguon Trung uong',
+            'title' => 'Nguồn Trung ương',
             'path' => KHNV_INPUT_DIR . '/TW.xlsx',
             'upload_prefix' => 'CTKHNV_TW',
         ],
         'dp' => [
             'key' => 'dp',
             'label' => 'DP',
-            'title' => 'Nguon dia phuong',
+            'title' => 'Nguồn Địa phương',
             'path' => KHNV_INPUT_DIR . '/DP.xlsx',
             'upload_prefix' => 'CTKHNV_DP',
         ],
@@ -36,22 +36,22 @@ function khnv_export_mode_configs(): array
     return [
         'TT' => [
             'key' => 'TT',
-            'label' => 'TT',
-            'title' => 'Dieu chinh chi tieu',
+            'label' => 'Tờ Trình',
+            'title' => 'Điều chỉnh chỉ tiêu',
             'template' => KHNV_TEMPLATE_DOCX_PGD_XA,
             'download_name' => 'Dieu_chinh_chi_tieu.docx',
         ],
         'DMDN' => [
             'key' => 'DMDN',
-            'label' => 'DMDN',
-            'title' => 'To trinh',
+            'label' => 'Danh mục tờ trình',
+            'title' => 'Tờ trình',
             'template' => KHNV_TEMPLATE_DOCX_TT_PGD,
             'download_name' => 'To_trinh.docx',
         ],
         'ALL' => [
             'key' => 'ALL',
             'label' => 'ALL',
-            'title' => 'Ca hai mau',
+            'title' => 'Cả hai mẫu',
             'download_name' => 'Xuat_chi_tieu.zip',
         ],
     ];

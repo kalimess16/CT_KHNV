@@ -248,7 +248,7 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
                     aria-expanded="<?= $activePanel === 'export' ? 'true' : 'false' ?>"
                     role="button"
                 >
-                    <span class="panel-launcher-kicker">Xuất DOCX</span>
+                    <span class="panel-launcher-kicker">Xuất Chỉ Tiêu</span>
                 </a>
             </div>
 
@@ -581,6 +581,155 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
         return String(raw).trim() !== '';
     }
 
+    function stripOuterParens(expression) {
+        let current = String(expression || '').trim();
+        while (current.startsWith('(') && current.endsWith(')')) {
+            let depth = 0;
+            let isWrapper = true;
+            for (let i = 0; i < current.length; i += 1) {
+                const char = current[i];
+                if (char === '(') {
+                    depth += 1;
+                } else if (char === ')') {
+                    depth -= 1;
+                    if (depth < 0) {
+                        isWrapper = false;
+                        break;
+                    }
+                    if (depth === 0 && i < current.length - 1) {
+                        isWrapper = false;
+                        break;
+                    }
+                }
+            }
+            if (!isWrapper || depth !== 0) {
+                break;
+            }
+            current = current.slice(1, -1).trim();
+        }
+        return current;
+    }
+
+    function splitTopLevelArgs(expression) {
+        const args = [];
+        let current = '';
+        let depth = 0;
+        for (const char of String(expression || '')) {
+            if (char === '(') {
+                depth += 1;
+                current += char;
+                continue;
+            }
+            if (char === ')') {
+                depth -= 1;
+                if (depth < 0) return null;
+                current += char;
+                continue;
+            }
+            if ((char === ',' || char === ';') && depth === 0) {
+                args.push(current.trim());
+                current = '';
+                continue;
+            }
+            current += char;
+        }
+        if (depth !== 0) return null;
+        args.push(current.trim());
+        return args;
+    }
+
+    function parseFunctionArgs(expression, name) {
+        const normalized = stripOuterParens(expression);
+        const prefix = `${String(name || '').toUpperCase()}(`;
+        if (!normalized.toUpperCase().startsWith(prefix) || !normalized.endsWith(')')) {
+            return null;
+        }
+        return splitTopLevelArgs(normalized.slice(prefix.length, -1));
+    }
+
+    function isZeroLiteral(expression) {
+        const normalized = stripOuterParens(String(expression || '').trim());
+        if (!normalized) return false;
+        const num = Number(normalized);
+        return Number.isFinite(num) && Math.abs(num) < 0.00000001;
+    }
+
+    function expressionKey(expression) {
+        return stripOuterParens(String(expression || '').replace(/\s+/g, '').trim()).replace(/^\+/, '').toUpperCase();
+    }
+
+    function extractIfPassthroughExpression(condition, whenTrue, whenFalse) {
+        const normalizedCondition = stripOuterParens(condition);
+        const match = normalizedCondition.match(/^(.+?)(>=|<=|<>|=|>|<)(.+)$/);
+        if (!match) return null;
+
+        const [, leftRaw, operator, rightRaw] = match;
+        if (!['>', '>=', '<', '<='].includes(operator)) {
+            return null;
+        }
+
+        const left = stripOuterParens(leftRaw);
+        const right = stripOuterParens(rightRaw);
+        const trueKey = expressionKey(whenTrue);
+        const falseKey = expressionKey(whenFalse);
+        const leftKey = expressionKey(left);
+        const rightKey = expressionKey(right);
+        const leftIsZero = isZeroLiteral(left);
+        const rightIsZero = isZeroLiteral(right);
+
+        if (isZeroLiteral(whenFalse)) {
+            if (trueKey && trueKey === leftKey && rightIsZero && ['>', '>='].includes(operator)) {
+                return whenTrue;
+            }
+            if (trueKey && trueKey === rightKey && leftIsZero && ['<', '<='].includes(operator)) {
+                return whenTrue;
+            }
+        }
+
+        if (isZeroLiteral(whenTrue)) {
+            if (falseKey && falseKey === leftKey && rightIsZero && ['<', '<='].includes(operator)) {
+                return whenFalse;
+            }
+            if (falseKey && falseKey === rightKey && leftIsZero && ['>', '>='].includes(operator)) {
+                return whenFalse;
+            }
+        }
+
+        return null;
+    }
+
+    function extractPassthroughExpression(formula) {
+        const normalized = stripOuterParens(formula);
+
+        const maxArgs = parseFunctionArgs(normalized, 'MAX');
+        if (Array.isArray(maxArgs) && maxArgs.length === 2) {
+            if (isZeroLiteral(maxArgs[0])) return maxArgs[1];
+            if (isZeroLiteral(maxArgs[1])) return maxArgs[0];
+        }
+
+        const ifArgs = parseFunctionArgs(normalized, 'IF');
+        if (Array.isArray(ifArgs) && ifArgs.length === 3) {
+            return extractIfPassthroughExpression(ifArgs[0], ifArgs[1], ifArgs[2]);
+        }
+
+        return null;
+    }
+
+    function unwrapPassthroughExpression(formula) {
+        let current = stripOuterParens(formula);
+        while (true) {
+            const next = extractPassthroughExpression(current);
+            if (next === null) {
+                return current;
+            }
+            const normalizedNext = stripOuterParens(next);
+            if (expressionKey(normalizedNext) === expressionKey(current)) {
+                return current;
+            }
+            current = normalizedNext;
+        }
+    }
+
     function getFormulaTermValue(term) {
         const normalized = String(term || '').trim().toUpperCase();
         if (!normalized) return null;
@@ -628,7 +777,7 @@ $bodyClasses[] = 'dataset-' . preg_replace('/[^a-z0-9_-]/i', '', $dataset);
     }
 
     function evaluateFormula(formula) {
-        const raw = String(formula || '').replace(/\s+/g, '').replace(/^=/, '');
+        const raw = unwrapPassthroughExpression(String(formula || '').replace(/\s+/g, '').replace(/^=/, ''));
         if (!raw) return null;
 
         const tokenPattern = /([+\-]?)(SUM\([A-Z]+\d+:[A-Z]+\d+\)|[A-Z]+\d+|#[A-Z0-9\/!?\-]+|\d+(?:\.\d+)?)/ig;
