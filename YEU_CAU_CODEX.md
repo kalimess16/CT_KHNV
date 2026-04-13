@@ -96,18 +96,16 @@ Khi ban nhan cho Codex, hay uu tien dung file nay de viet yeu cau thay vi nhan t
 
 ## Noi dung yeu cau
 
-### Thu muc `CHITIEU/`
+### Thu muc `DB_CONNECT/`
 
 - Trang thai: TODO
 - Muc do uu tien: cao
 - File can:
   - Doc truoc: `YEU_CAU_CODEX.md`
-  - Doc bat buoc neu sua module nay: `IMPORT_EXPORT_RULES.md`
-  - Doc them neu module nay dang duoc nhung trong trang chu: `HOME_INDEX_RULES.md`
-  - File sua/tao: `CHITIEU/index.php`, `CHITIEU/CODE/index.php`, `CHITIEU/CODE/data.php`, `CHITIEU/CODE/import.php`, `CHITIEU/CODE/export.php`, `CHITIEU/CODE/style.css`, file trong `INPUT/`, `OUTPUT/` neu co noi ro
+  - File sua/tao: `connect_db.php`
 - Yeu cau:
-  - trên index khi tôi thay đổi cột ` điều chỉnh tăng trưởng ` thì cột ` chỉ tiêu kế hoạch năm 2026` = ` kế hoạch năm 2026 đã giao` + ` điều chỉnh tăng trưởng `.
-   Cach kiem tra:
+  + tôi muốn tạo 1 file connect 
+- Cach kiem tra:
   - vào xuất docs tải về xem
 - Ghi chu them:
   - Neu co file mau dang active thi ghi ro ten file.

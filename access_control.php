@@ -1,16 +1,18 @@
 <?php
 declare(strict_types=1);
 
-const KHNV_ALLOWED_CLIENTS = [
-    '10.64.0.108' => 'may Tin hoc',
-    '10.64.0.62' => 'may Ms Trang',
-    '10.64.0.60' => 'may Ms Tu',
-    '10.64.0.83' => 'may Mr Doanh',
-];
-
 function khnv_access_allowed_clients(): array
 {
-    return KHNV_ALLOWED_CLIENTS;
+    // Them IP vao day de cho phep truy cap.
+    // Xoa IP khoi day de chan truy cap qua PHP.
+    // Neu them IP moi, cap nhat them file .htaccess de Apache khong chan truoc khi vao PHP.
+    return [
+        '10.64.0.108' => 'may Tin hoc',
+        '10.64.0.62' => 'may Ms Trang',
+        '10.64.0.60' => 'may Ms Tu',
+        '10.64.0.83' => 'may Mr Doanh',
+        '10.64.0.234' => 'may ptp tin hoc',
+    ];
 }
 
 function khnv_access_is_loopback_host(string $host): bool

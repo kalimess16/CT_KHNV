@@ -404,15 +404,21 @@ Tài liệu này gộp nội dung từ các file `.md` ở thư mục gốc củ
 - `10.64.0.62`: máy Ms Trang
 - `10.64.0.60`: máy Ms Tư
 - `10.64.0.83`: máy Mr Doanh
+- `10.64.0.234`: máy ptp tin học
 
 ### 4.3. Hành vi truy cập
 
-- Apache ưu tiên chặn request ngay từ đầu; whitelist gồm 4 IP được phép và `local` để máy chủ có thể vào bằng `localhost`.
+- Apache ưu tiên chặn request ngay từ đầu; whitelist gồm 5 IP được phép và `local` để máy chủ có thể vào bằng `localhost`.
 - Nếu người dùng vào bằng `localhost`, hệ thống PHP ưu tiên đổi sang IP LAN của máy chủ rồi mới kiểm tra whitelist.
 - Nếu `REMOTE_ADDR` không nằm trong danh sách được phép, hệ thống trả về `403 Forbidden`.
 - Trang bị chặn phải hiển thị IP hiện tại để dễ đối chiếu khi cần cập nhật whitelist.
 
-### 4.4. Cách kiểm tra
+### 4.4. Cách cập nhật IP
+
+- Để cho phép IP mới: thêm IP vào hàm `khnv_access_allowed_clients()` trong `access_control.php` và thêm IP đó vào file `.htaccess`.
+- Để chặn IP đang được phép: xóa IP khỏi hàm `khnv_access_allowed_clients()` trong `access_control.php` và xóa IP đó khỏi file `.htaccess`.
+
+### 4.5. Cách kiểm tra
 
 - Mở `index.php` từ một máy có IP nằm trong whitelist và xác nhận trang vẫn hoạt động bình thường.
 - Mở `index.php` từ một máy không nằm trong whitelist và xác nhận nhận trang `403`.
